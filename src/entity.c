@@ -20,10 +20,14 @@ Entites need to be able to notify observers of an event taken
 */
 
 typedef struct _observer{
+	int id;
 	// address of concrete observer. Can be an entity, observer, npc, environment object etc
 	void* impl;
+	// Number of subjects attached to
+	int instances;
 	// update takes generic input and triggers specific update.
-	int (*update)(struct _observer*, Event, void* subject);
+	// observer event subject
+	int (*update)(struct _observer*, int, void*);
 	int (*destroy)(struct _observer*);
 }Observer;
 
@@ -35,16 +39,17 @@ I am keeping them in for now so functions they are passed to can call their func
 */
 typedef struct _entity{
 	int id;
+	int event;
 	int (*destroy)(struct _entity*);
 	// Observer data
-	Observer observers[MAX_OBSERVERS];
+	Observer* observers[MAX_OBSERVERS];
 	int observerNum;
 	// Register observer
 	int (*registerObserver)(struct _entity*, Observer*);
 	// Unregister observer
 	int (*unregisterObserver)(struct _entity*, Observer*);
 	// Notify observers runs the update function for each
-	void (*notifyObservers)(struct _entity*);
+	int (*notifyObservers)(struct _entity*);
 }Entity;
 
 static int _destroyEntity(Entity* ){
@@ -53,23 +58,68 @@ static int _destroyEntity(Entity* ){
 	return 0;
 }
 
+// TODO add check if already attached
 static int _registerObserver(Entity* this, Observer* that){
 	if(this->observerNum >= MAX_OBSERVERS){
 		// Add in some error code here. Observer couldn't be added
 		return -1;
 	}
-	this->observers[++this->observerNum] = that;
+	this->observers[(this->observerNum)++] = that;
+	that->instances++;
+	//that->update(that, 2, that->impl);
+	return 0;
+}
+static int _unregisterObserver(Entity* this, Observer* that){
+	for(int i = 0; i < this->observerNum; i++){
+		// TODO Need to check there are no other registered locations
+		if(this->observers[i] == that){
+			that->instances--;
+			if(this->observerNum>1){
+				this->observers[i] = this->observers[this->observerNum];
+			}
+			this->observerNum--;
+		}
+	}
+	return 0;
+}
+
+static int _notifyObservers(Entity* this){
+	if(this->observerNum <1){
+		return -1;
+	}
+	for(int i = 0; i < this->observerNum; i++){
+		printf("Number of observers:%i\n", this->observerNum);
+		this->observers[i]->update(this->observers[i], this->event, this);
+	}
 	return 0;
 }
 
 Entity* newEntity(){
 	Entity* this = malloc(sizeof(Entity));
 	static int id = 0;
-	this->id = id;
-	id++;
+	this->id = id++;
+	this->registerObserver = _registerObserver;
+	this->unregisterObserver = _unregisterObserver;
+	this->notifyObservers = _notifyObservers;
 	this->destroy = _destroyEntity;
 	return this;
 }
-Observer* newObserver(void* impl, int (*update)(Observer*, enum, void* subject)){
+int updateTest(Observer* this, int event, void* subject){
+	printf("Observer triggered by Entity: %i\n", ((Entity*)subject)->id);
+	*(int*)this->impl = event;
+	return 0;
+}
 
+
+int observerDestroy(Observer* this){
+	return 0;
+}
+Observer* newObserver(void* impl, int (*update)(Observer*, int, void*)){
+	Observer* this = malloc(sizeof(Observer));
+	static int id = 0;
+	this->id = id++;
+	this->impl = impl;
+	this->update = updateTest;
+	this->destroy = observerDestroy;
+	return this;
 }

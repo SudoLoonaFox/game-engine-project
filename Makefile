@@ -4,7 +4,7 @@ SRC=src
 SRCS=$(wildcard $(SRC)/*.c)
 OBJ=obj
 OBJS=$(patsubst $(SRC)/%.c, $(OBJ)/%.o, $(SRCS))
-GAME=game
+BIN=game
 
 TEST=testing
 TESTS=$(wildcard $(TEST)/*.c)
@@ -28,5 +28,5 @@ test: $(TEST)/bin $(TESTBINS)
 	for test in $(TESTBINS) ; do ./$$test ; done
 
 clean:
-	trash-put $(GAME)
+	trash-put $(BIN)
 	trash-put obj/*
