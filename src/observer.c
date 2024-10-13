@@ -32,7 +32,12 @@ typedef struct _observer{
 	int (*destroy)(struct _observer*);
 }Observer;
 
-int observerDestroy(Observer* this){
+// Default deconstructor
+static int observerDestroy(Observer* this){
+	if(this!=NULL){
+		free(this);
+		this = NULL;
+	}
 	return 0;
 }
 
