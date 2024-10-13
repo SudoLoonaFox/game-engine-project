@@ -1,9 +1,5 @@
-#ifndef ENTITY_H
-#define ENTITY_H
-
 #include <stdio.h>
 #include <stdlib.h>
-#include "observer.h"
 
 #define MAX_OBSERVERS 100
 
@@ -23,29 +19,29 @@ Entities need to either store component data or have component data referenced b
 Entites need to be able to notify observers of an event taken
 */
 
-/*
-Entites may be initalized in an array but most access will be by refernce
-Should I include the register unregister functions in the struct?
-Reg, unreg, notify, destroy can be moved out of this; however,
-I am keeping them in for now so functions they are passed to can call their functions
-*/
-typedef struct _entity{
+// Observers can be attached to different types of objects. Some will be generic and others will be specific
+typedef struct _observer{
 	int id;
-	int event;
-	int (*destroy)(struct _entity*);
-	// Observer data
-	Observer* observers[MAX_OBSERVERS];
-	int observerNum;
-	// Register observer
-	int (*registerObserver)(struct _entity*, Observer*);
-	// Unregister observer
-	int (*unregisterObserver)(struct _entity*, Observer*);
-	// Notify observers runs the update function for each
-	int (*notifyObservers)(struct _entity*);
-}Entity;
+	// address of concrete observer. Can be an entity, observer, npc, environment object etc
+	void* impl;
+	// Number of subjects attached to
+	int instances;
+	// update takes generic input and triggers specific update.
+	// observer event subject
+	int (*update)(struct _observer*, int, void*);
+	int (*destroy)(struct _observer*);
+}Observer;
 
-Entity* newEntity();
+int observerDestroy(Observer* this){
+	return 0;
+}
 
-int updateTest(Observer*, int, void*);
-
-#endif
+Observer* newObserver(void* impl, int (*update)(Observer*, int, void*)){
+	Observer* this = malloc(sizeof(Observer));
+	static int id = 0;
+	this->id = id++;
+	this->impl = impl;
+	this->update = update;
+	this->destroy = observerDestroy;
+	return this;
+}

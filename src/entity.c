@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "observer.h"
 
 #define MAX_OBSERVERS 100
 
@@ -18,18 +19,6 @@ A quest may get an event for an enemy dying. The quest needs to check the enemy 
 Entities need to either store component data or have component data referenced by an id
 Entites need to be able to notify observers of an event taken
 */
-
-typedef struct _observer{
-	int id;
-	// address of concrete observer. Can be an entity, observer, npc, environment object etc
-	void* impl;
-	// Number of subjects attached to
-	int instances;
-	// update takes generic input and triggers specific update.
-	// observer event subject
-	int (*update)(struct _observer*, int, void*);
-	int (*destroy)(struct _observer*);
-}Observer;
 
 /*
 Entites may be initalized in an array but most access will be by refernce
@@ -69,6 +58,7 @@ static int _registerObserver(Entity* this, Observer* that){
 	//that->update(that, 2, that->impl);
 	return 0;
 }
+
 static int _unregisterObserver(Entity* this, Observer* that){
 	for(int i = 0; i < this->observerNum; i++){
 		// TODO Need to check there are no other registered locations
@@ -104,22 +94,10 @@ Entity* newEntity(){
 	this->destroy = _destroyEntity;
 	return this;
 }
+
+// TODO make some generic and some specific functions for quests, achievements, etc
 int updateTest(Observer* this, int event, void* subject){
 	printf("Observer triggered by Entity: %i\n", ((Entity*)subject)->id);
 	*(int*)this->impl = event;
 	return 0;
-}
-
-
-int observerDestroy(Observer* this){
-	return 0;
-}
-Observer* newObserver(void* impl, int (*update)(Observer*, int, void*)){
-	Observer* this = malloc(sizeof(Observer));
-	static int id = 0;
-	this->id = id++;
-	this->impl = impl;
-	this->update = updateTest;
-	this->destroy = observerDestroy;
-	return this;
 }
