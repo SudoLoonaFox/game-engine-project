@@ -30,8 +30,11 @@ typedef struct _observer{
 	// update takes generic input and triggers specific update.
 	// observer event subject
 	int (*update)(struct _observer*, int, void*);
-	int (*destroy)(struct _observer*);
+	int (*destroy)(struct _observer**);
 }Observer;
 
+int observerDestroy(Observer**);
+
+// impl, func ptr to update
 Observer* newObserver(void*, int (*)(Observer*, int, void*));
 #endif

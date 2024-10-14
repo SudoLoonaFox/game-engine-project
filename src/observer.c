@@ -29,15 +29,15 @@ typedef struct _observer{
 	// update takes generic input and triggers specific update.
 	// observer event subject
 	int (*update)(struct _observer*, int, void*);
-	int (*destroy)(struct _observer*);
+	int (*destroy)(struct _observer**);
 }Observer;
 
 // Default deconstructor
-static int observerDestroy(Observer* this){
+int observerDestroy(Observer** this){
 	if(this!=NULL){
-		free(this);
-		this = NULL;
+		free(*this);
 	}
+	*this = NULL;
 	return 0;
 }
 
