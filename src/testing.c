@@ -26,5 +26,6 @@ int main(){
 	printf("testInt:%i\n",testInt);
 	printf("Unregistering observer\n");
 	entity[0]->unregisterObserver(entity[0], obs);
+	obs->destroy(&obs);
 }
 
