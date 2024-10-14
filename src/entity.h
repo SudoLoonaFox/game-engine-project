@@ -44,6 +44,8 @@ typedef struct _entity{
 	int (*notifyObservers)(struct _entity*);
 }Entity;
 
+void notify(Entity* , int);
+
 Entity* newEntity();
 
 int updateTest(Observer*, int, void*);

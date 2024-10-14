@@ -41,6 +41,11 @@ typedef struct _entity{
 	int (*notifyObservers)(struct _entity*);
 }Entity;
 
+void notify(Entity* this, int event){
+	this->event = event;
+	this->notifyObservers(this);
+}
+
 static int _destroyEntity(Entity* ){
 	//code to free entity memory and release observers
 	// if entity is part of an array then just move last item to entity position and decrement array length

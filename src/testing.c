@@ -21,6 +21,8 @@ int main(){
 	entity[0]->event = 1;
 	entity[0]->notifyObservers(entity[0]);
 
+	notify(entity[0], 5);
+
 	printf("testInt:%i\n",testInt);
 	printf("Unregistering observer\n");
 	entity[0]->unregisterObserver(entity[0], obs);
