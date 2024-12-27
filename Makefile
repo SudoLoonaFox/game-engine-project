@@ -8,7 +8,7 @@ BIN=game
 
 TEST=tests
 TESTS=$(wildcard $(TEST)/*.c)
-TESTBINS=$(patsubst $(TEST)/%.c, $(TEST)/bin%, $(TESTS))
+TESTBINS=$(patsubst $(TEST)/%.c, $(TEST)/bin/%, $(TESTS))
 
 all:$(BIN)
 
@@ -25,13 +25,11 @@ test: $(TEST)/bin $(TESTBINS) $(OBJS)
 	for test in $(TESTBINS) ; do ./$$test ; done
 
 
-$(TEST)/bin/%: $(TEST)/%.c $(OBS)
+$(TEST)/bin/%: $(TEST)/%.c $(OBJS)
 	$(CC) $(CFLAGS) $< $(OBJS) -o $@ -lcriterion
-
 
 $(TEST)/bin:
 	mkdir $@
 
 clean:
-	trash-put obj/*
-	trash-put $(BIN)
+	trash-put obj/* $(TEST)/bin/* $(BIN)

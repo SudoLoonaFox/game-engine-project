@@ -42,6 +42,71 @@ unsigned int indices[] = {  // note that we start from 0!
     1, 2, 3    // second triangle
 };
 
+#pragma pack(push, 1)
+typedef struct {
+	float x;
+	float y;
+	float z;
+}Vertex;
+
+typedef struct {
+	float u;
+	float v;
+}Normal;
+
+typedef struct { // vertex indices
+	unsigned int v1;
+	unsigned int v2;
+	unsigned int v3;
+}Face;
+#pragma pack(pop)
+
+typedef struct {
+	Vertex* vertices;
+	unsigned int verticesLen;
+	Normal* normals;
+	unsigned int normalsLen;
+	Face* faces;
+	unsigned int facesLen;
+	//texture coordinates[]
+	unsigned int materialIndex;
+}Mesh;
+
+typedef struct node {
+	struct node* children;
+	unsigned int childrenLen;
+	Mesh* meshes;
+	unsigned int meshesLen;
+}Node;
+
+typedef struct { //floats or ints?
+	float r;
+	float g;
+	float b;
+}Color;
+
+typedef struct { // TODO add texture maps for properties in addition to defaults
+	Color diffuseColor;
+	Color specularColor;
+	Color ambientColor;
+	Color emissiveColor;
+	Color transparentColor;
+	Color reflectiveColor;
+	// TODO add normal maps eventually
+	float reflectivity;
+	float opacity;
+	float shininess;
+	float shininessStrength;
+}Material;
+
+struct {
+	Node* rootNode;
+	Mesh* meshes;
+	unsigned int meshesLen;
+	Material* materials;
+	unsigned int materialsLen;
+}Scene;
+
 int main(){
 	GLFWwindow* window = NULL;
 	if(!glfwInit()){
@@ -123,7 +188,7 @@ int main(){
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glUseProgram(shaderProgram);
-		glBindVertexArray(VAO);
+        glBindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 		// draw buffer swap
