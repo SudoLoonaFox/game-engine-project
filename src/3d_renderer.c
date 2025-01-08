@@ -3,6 +3,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <cglm/cglm.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -30,7 +36,6 @@ const char *vertexShaderSource = "#version 330 core\n"
 	"	gl_Position = vec4(aPos, 1.0);\n"
 	"	outputColor = aColor;\n"
 	"	texCoord = vec2(aTexCoord.x, aTexCoord.y);\n"
-   //"   gl_Position = vec4(aPos, 1.0);\n" //testing color
     "}\0";
 
 const char *fragmentShaderSource = "#version 330 core\n"
@@ -53,6 +58,46 @@ int logShaderCompileErrors(GLuint shader){
 	}
 	return success;
 }
+
+typedef struct{
+	char* data;
+	int width;
+	int height;
+}BMPImage;
+int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into currently bound texture
+	// main texture related stuff
+	int fd = open(path, O_RDONLY, S_IRUSR);
+	struct stat sb;
+	if(fstat(fd, &sb) == -1){
+		printf("Error loading file\n");
+		// do error stuff
+		// close file descripter
+	}
+	char* data = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	unsigned int width, height, offset, imageSize;
+	if(data[0] != 'B' || data[1] != 'M'){
+		// not correct file type
+		printf("Invalid image type\n");
+	}
+	// cause we are reading this bytewise we need to cast the data
+	width = *(int*)&data[0x12]; // is two bytes but should be ok like this?
+	height = *(int*)&data[0x16];
+	offset = *(int*)&data[0x0A];
+	imageSize = *(int*)&data[0x22];
+	// set default offset if needed
+	if(offset == 0) offset = 54;
+	if(imageSize == 0) imageSize = width * height * 3;
+	// copy data to new array
+	char* colorData = malloc(imageSize);
+	memcpy(colorData, data+offset, imageSize);
+	image->data = colorData;
+	image->width = width;
+	image->height = height;
+	munmap(data, sb.st_size);
+	close(fd);
+
+	return 0;
+};
 
 float vertices[] = {
     // positions          // colors           // texture coords
@@ -86,6 +131,7 @@ typedef struct { // vertex indices
 }Face;
 #pragma pack(pop)
 
+/*
 typedef struct {
 	Vertex* vertices;
 	unsigned int verticesLen;
@@ -131,6 +177,7 @@ struct {
 	Material* materials;
 	unsigned int materialsLen;
 }Scene;
+*/
 
 int main(){
 	GLFWwindow* window = NULL;
@@ -218,7 +265,9 @@ int main(){
 
 	// Creating a texture with stb image
 	int width, height, nrChannels;
-	unsigned char* imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0);
+	BMPImage imageData;
+	loadBMPImage("src/fox.bmp", &imageData); // loads texture data into currently bound texture
+	//unsigned char *imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0); 
 	unsigned int texture;
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
@@ -227,9 +276,10 @@ int main(){
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, imageData);
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageData.width, imageData.height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData.data);
 	glGenerateMipmap(GL_TEXTURE_2D);
-	stbi_image_free(imageData);
+	free(imageData.data);
 
 	while(!glfwWindowShouldClose(window)){
 		processInput(window);
