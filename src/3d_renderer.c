@@ -25,28 +25,8 @@ static void processInput(GLFWwindow *window){
 	}
 }
 
-const char *vertexShaderSource = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "layout (location = 1) in vec3 aColor;\n"
-    "layout (location = 2) in vec2 aTexCoord;\n"
-	"out vec3 outputColor;\n"
-	"out vec2 texCoord;\n"
-    "void main()\n"
-    "{\n"
-	"	gl_Position = vec4(aPos, 1.0);\n"
-	"	outputColor = aColor;\n"
-	"	texCoord = vec2(aTexCoord.x, aTexCoord.y);\n"
-    "}\0";
-
-const char *fragmentShaderSource = "#version 330 core\n"
-    "out vec4 FragColor;\n"
-	"in vec3 outputColor;\n"
-	"in vec2 texCoord;\n"
-	"uniform sampler2D texture1;\n"
-    "void main()\n"
-    "{\n"
-	"	FragColor = texture(texture1, texCoord);\n"
-    "}\0";
+const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
+const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
 
 int logShaderCompileErrors(GLuint shader){
 	int success;
@@ -64,6 +44,7 @@ typedef struct{
 	int width;
 	int height;
 }BMPImage;
+
 int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into currently bound texture
 	// main texture related stuff
 	int fd = open(path, O_RDONLY, S_IRUSR);
@@ -203,9 +184,17 @@ int main(){
     GL_DYNAMIC_DRAW: the data is changed a lot and used many times.
 	*/
 
+	struct stat sb;
 	unsigned int vertexShader;
 	vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+	int fd = open(vertexShaderPath, O_RDONLY, S_IRUSR);
+	if(fstat(fd, &sb)==-1){
+		printf("failed to load vertex shader source\n");
+	}
+	char* shaderSource = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	glShaderSource(vertexShader, 1, (const char**)&shaderSource, NULL);
+	munmap(shaderSource, sb.st_size);
+	close(fd);
 	glCompileShader(vertexShader);
 
 	logShaderCompileErrors(vertexShader);
@@ -214,7 +203,14 @@ int main(){
 
 	unsigned int fragmentShader;
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+	fd = open(fragmentShaderPath, O_RDONLY, S_IRUSR);
+	if(fstat(fd, &sb)==-1){
+		printf("failed to load fragment shader source\n");
+	}
+	shaderSource = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	glShaderSource(fragmentShader, 1, (const char**)&shaderSource, NULL);
+	munmap(shaderSource, sb.st_size);
+	close(fd);
 	glCompileShader(fragmentShader);
 
 	logShaderCompileErrors(fragmentShader);
@@ -266,7 +262,7 @@ int main(){
 	// Creating a texture with stb image
 	int width, height, nrChannels;
 	BMPImage imageData;
-	loadBMPImage("src/fox.bmp", &imageData); // loads texture data into currently bound texture
+	loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
 	//unsigned char *imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0); 
 	unsigned int texture;
 	glGenTextures(1, &texture);
