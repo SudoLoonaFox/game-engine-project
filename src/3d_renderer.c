@@ -112,54 +112,6 @@ typedef struct { // vertex indices
 }Face;
 #pragma pack(pop)
 
-/*
-typedef struct {
-	Vertex* vertices;
-	unsigned int verticesLen;
-	Normal* normals;
-	unsigned int normalsLen;
-	Face* faces;
-	unsigned int facesLen;
-	//texture coordinates[]
-	unsigned int materialIndex;
-}Mesh;
-
-typedef struct node {
-	struct node* children;
-	unsigned int childrenLen;
-	Mesh* meshes;
-	unsigned int meshesLen;
-}Node;
-
-typedef struct { //floats or ints?
-	float r;
-	float g;
-	float b;
-}Color;
-
-typedef struct { // TODO add texture maps for properties in addition to defaults
-	Color diffuseColor;
-	Color specularColor;
-	Color ambientColor;
-	Color emissiveColor;
-	Color transparentColor;
-	Color reflectiveColor;
-	// TODO add normal maps eventually
-	float reflectivity;
-	float opacity;
-	float shininess;
-	float shininessStrength;
-}Material;
-
-struct {
-	Node* rootNode;
-	Mesh* meshes;
-	unsigned int meshesLen;
-	Material* materials;
-	unsigned int materialsLen;
-}Scene;
-*/
-
 int main(){
 	GLFWwindow* window = NULL;
 	if(!glfwInit()){
@@ -221,7 +173,6 @@ int main(){
 	glAttachShader(shaderProgram, fragmentShader);
 	glLinkProgram(shaderProgram);
 	glUseProgram(shaderProgram);
-	
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
@@ -263,6 +214,7 @@ int main(){
 	int width, height, nrChannels;
 	BMPImage imageData;
 	loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
+	// stbi_set_flip_vertically_on_load(true);
 	//unsigned char *imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0); 
 	unsigned int texture;
 	glGenTextures(1, &texture);
@@ -276,6 +228,47 @@ int main(){
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageData.width, imageData.height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData.data);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	free(imageData.data);
+
+	 //When multiplying matrices the right-most matrix is first multiplied with the vector so you should read the multiplications from right to left. It is advised to first do scaling operations, then rotations and lastly translations when combining matrices
+	//If transpose is GL_FALSE, each matrix is assumed to be supplied in column major order. If transpose is GL_TRUE, each matrix is assumed to be supplied in row major order
+	//local space -> model matrix -> world space -> view matrix -> view space -> projection matrix -> clip space -> viewport transform -> screen space
+	//TODO abstract this awful code
+
+	unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
+	unsigned int viewMatLoc = glGetUniformLocation(shaderProgram, "view");
+	unsigned int modelMatLoc = glGetUniformLocation(shaderProgram, "model");
+
+	float modelMat[16] = {
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1
+	};
+
+	float viewMat[16] = {
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1
+	};
+
+	float projectionMat[16] = {
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1
+	};
+	
+	float rot[] = {1.0, 0.0, 0.0};
+	float trans[] = {0.0, 0.0, -3.0};
+
+	glm_rotate((float (*)[4])modelMat, 0.5f, rot);
+	glm_translate((float (*)[4])viewMat, trans);
+	glm_perspective(0.780f, (float)(880/600), 0.1f, 100.0f, (float(*)[4])projectionMat);
+
+	glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
+	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
+	glUniformMatrix4fv(modelMatLoc, 1, GL_FALSE, (float*)modelMat);
 
 	while(!glfwWindowShouldClose(window)){
 		processInput(window);
@@ -293,6 +286,7 @@ int main(){
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
+	// deallocate vao,vbo,ebo
 	glfwTerminate();
 	return 0;
 }
