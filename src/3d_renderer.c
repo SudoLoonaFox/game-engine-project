@@ -14,6 +14,47 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
+const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
+
+typedef struct{
+	char* data;
+	int width;
+	int height;
+}BMPImage;
+
+float vertices[] = {
+    // positions          // colors           // texture coords
+     0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
+     0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
+    -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
+    -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left
+};
+
+unsigned int indices[] = {  // note that we start from 0!
+    0, 1, 3,   // first triangle
+    1, 2, 3    // second triangle
+};
+
+#pragma pack(push, 1)
+typedef struct {
+	float x;
+	float y;
+	float z;
+}Vertex;
+
+typedef struct {
+	float u;
+	float v;
+}Normal;
+
+typedef struct { // vertex indices
+	unsigned int v1;
+	unsigned int v2;
+	unsigned int v3;
+}Face;
+#pragma pack(pop)
+
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
@@ -25,9 +66,6 @@ static void processInput(GLFWwindow *window){
 	}
 }
 
-const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
-const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
-
 int logShaderCompileErrors(GLuint shader){
 	int success;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
@@ -38,12 +76,6 @@ int logShaderCompileErrors(GLuint shader){
 	}
 	return success;
 }
-
-typedef struct{
-	char* data;
-	int width;
-	int height;
-}BMPImage;
 
 int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into currently bound texture
 	// main texture related stuff
@@ -80,38 +112,6 @@ int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into 
 	return 0;
 };
 
-float vertices[] = {
-    // positions          // colors           // texture coords
-     0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-     0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
-    -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
-    -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left
-};
-
-unsigned int indices[] = {  // note that we start from 0!
-    0, 1, 3,   // first triangle
-    1, 2, 3    // second triangle
-};
-
-#pragma pack(push, 1)
-typedef struct {
-	float x;
-	float y;
-	float z;
-}Vertex;
-
-typedef struct {
-	float u;
-	float v;
-}Normal;
-
-typedef struct { // vertex indices
-	unsigned int v1;
-	unsigned int v2;
-	unsigned int v3;
-}Face;
-#pragma pack(pop)
-
 int main(){
 	GLFWwindow* window = NULL;
 	if(!glfwInit()){
@@ -130,7 +130,6 @@ int main(){
 	glewInit();
 
 	/*
-
     GL_STREAM_DRAW: the data is set only once and used by the GPU at most a few times.
     GL_STATIC_DRAW: the data is set only once and used many times.
     GL_DYNAMIC_DRAW: the data is changed a lot and used many times.
@@ -208,7 +207,6 @@ int main(){
     // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
     // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
     glBindVertexArray(0);
-
 
 	// Creating a texture with stb image
 	int width, height, nrChannels;
