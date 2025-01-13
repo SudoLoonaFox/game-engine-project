@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -14,8 +15,25 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+// Specified in models.csv id,name,meshpath,texturepath
+const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
+
+// will have multiple ones for different rendering types
 const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
 const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
+
+
+
+typedef struct{
+	unsigned int id;
+	char name[30];
+	char meshPath[30];
+	char texturePath[30];
+	unsigned int VAO;
+	unsigned int VBO;
+	unsigned int EBO;
+	unsigned int texture;
+}Model;
 
 typedef struct{
 	char* data;
@@ -41,12 +59,12 @@ typedef struct {
 	float x;
 	float y;
 	float z;
-}Vertex;
-
-typedef struct {
+	float r;
+	float g;
+	float b;
 	float u;
 	float v;
-}Normal;
+}Vertex;
 
 typedef struct { // vertex indices
 	unsigned int v1;
@@ -54,6 +72,100 @@ typedef struct { // vertex indices
 	unsigned int v3;
 }Face;
 #pragma pack(pop)
+
+//TODO change this to load models based on scene csv
+Model* loadModelsIndex(int* length){
+	char* path = "src/models.csv";
+	FILE* file = fopen(path, "r");
+	if(file == NULL){
+		return NULL;
+	}
+	//TODO add reallocation
+	Model* models = malloc(sizeof(Model)*10);
+	char line[128];
+	int modelIndex = 0;
+	while(1){
+		if(fgets(line, 128, file)==NULL){
+			break;
+		}
+		//printf("%s\n", line);
+		if(0==sscanf(line, "%d,%[^,],%[^,],%[^,]", &models[modelIndex].id, models[modelIndex].name, models[modelIndex].meshPath, models[modelIndex].texturePath)){
+			continue;
+		}
+		modelIndex++;
+	}
+	fclose(file);
+	*length = modelIndex;
+	for(int i = 0; i<modelIndex; i++){
+		printf("id: %d, name: %s, path: %s\n", models[i].id, models[i].name, models[i].meshPath);
+	}
+	return models;
+}
+void getModelFromIndex(int id, Model* model);
+
+Model* loadModelObj(char* path, Model* model){
+	const int DEFAULT_SIZE = 100;
+	// check if meshpath is set
+	/*
+	if(model->meshPath==NULL){
+		return NULL;
+	}
+	*/
+	FILE* file = fopen(path, "r");
+	if(file == NULL){
+		return NULL;
+	}
+	//TODO Add reallocation
+	unsigned int vertexIndex = 0;
+	unsigned int textureCoordinateIndex = 0;
+	unsigned int vertexNormalIndex = 0;
+	unsigned int faceIndex = 0;
+	Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
+	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
+	//Normal* vertexNormals = malloc(sizeof(VertexNormal)*DEFAULT_SIZE);
+	Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
+	// TODO Remake to work line by line and can scan multiple ways
+	// IMPORTANT: obj indexing starts at 1
+	char startSymbol[20];
+	char line[128];
+	while(1){
+		fgets(line, 128, file);
+		int res = sscanf(line, "%s", startSymbol);
+		if(res==EOF){
+			break;
+		}
+		if(strcmp(startSymbol, "v") == 0){
+			sscanf(line, "v %f %f %f\n", &vertices[vertexIndex].x, &vertices[vertexIndex].y, &vertices[vertexIndex].z);
+			vertexIndex++;
+		}
+		else if(strcmp(startSymbol, "vt") == 0){
+			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinateIndex], &textureCoordinates[2*textureCoordinateIndex+1]);
+			textureCoordinateIndex++;
+		}
+		/*
+		else if(strcmp(startSymbol, "vn") == 0){
+			sscanf(line, "vn %f %f %f\n", vertexNormal[vertexNormalIndex].x, vertexNormal[vertexNormalIndex].y, vertexNormal[vertexNormalIndex].z);
+			vertexNormalIndex++;
+		}
+		*/
+		else if(strcmp(startSymbol, "f") == 0){
+			// possible formats are:
+			// f v v v
+			// f v/vt v/vt v/vt
+			// f v/vt/vn v/vt/vn v/vt/vn
+			// f v//vn v//vn v//vn
+			if(EOF!=sscanf(line, "f %d %d %d", &faces->v1, &faces->v2, &faces->v3)){
+				continue;
+			}
+			/*if(EOF!=sscanf(line, "f %d %d %d", &faces[faceIndex++].v1, &vertices[vertexIndex++].y, &vertices[vertexIndex].z)){
+				continue;
+			}
+			*/
+			
+		}
+
+	}
+}
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {

@@ -1,0 +1,3 @@
+id,name,mesh_path,texture
+1,"cube","models/cube.obj","textures/fox.bmp"
+2,"teapot","models/teapot.obj",NULL
