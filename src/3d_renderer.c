@@ -77,7 +77,40 @@ typedef struct { // vertex indices
 // return new or modify?
 
 //TODO add texture here? or elsewhere
-Model* dataToBuffers(Model* model, Vertex* verticies, unsigned int verticiesLen, int* indicies, unsigned int indicesLen);
+Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
+    glGenVertexArrays(1, &model->VAO);
+    glGenBuffers(1, &model->VBO);
+    glGenBuffers(1, &model->EBO);
+    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+    glBindVertexArray(model->VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*indicesLen, indices, GL_STATIC_DRAW);
+
+	// position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+	// color
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+	// texture coordinate
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
+
+    // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
+    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
+    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
+    glBindVertexArray(0);
+	return model;
+}
 	
 
 //TODO change this to load models based on scene csv
@@ -241,8 +274,6 @@ int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into 
 };
 
 int main(){
-	Model* model;
-	loadModelObj("src/models/cube.obj" , model);
 	GLFWwindow* window = NULL;
 	if(!glfwInit()){
 		return -1;
@@ -305,38 +336,8 @@ int main(){
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
-	unsigned int VBO, VAO, EBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	// position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, 8 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-	// color
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-	// texture coordinate
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-    // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
-    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-    glBindVertexArray(0);
+	Model model;
+	dataToBuffers(&model, (Vertex*)vertices, 8, indices, 6);
 
 	// Creating a texture with stb image
 	int width, height, nrChannels;
@@ -344,9 +345,8 @@ int main(){
 	loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
 	// stbi_set_flip_vertically_on_load(true);
 	//unsigned char *imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0); 
-	unsigned int texture;
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
+	glGenTextures(1, &model.texture);
+	glBindTexture(GL_TEXTURE_2D, model.texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -404,10 +404,10 @@ int main(){
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		// bind texture
-		glBindTexture(GL_TEXTURE_2D, texture);
+		glBindTexture(GL_TEXTURE_2D, model.texture);
 		// render container
 		glUseProgram(shaderProgram);
-        glBindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+        glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 //		glBindVertexArray(0);
 		// draw buffer swap
