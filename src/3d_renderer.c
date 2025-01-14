@@ -73,6 +73,13 @@ typedef struct { // vertex indices
 }Face;
 #pragma pack(pop)
 
+// Needs to take in the data and lengths of data and turn it into the buffers and store the buffers in the model
+// return new or modify?
+
+//TODO add texture here? or elsewhere
+Model* dataToBuffers(Model* model, Vertex* verticies, unsigned int verticiesLen, int* indicies, unsigned int indicesLen);
+	
+
 //TODO change this to load models based on scene csv
 Model* loadModelsIndex(int* length){
 	char* path = "src/models.csv";
@@ -103,7 +110,7 @@ Model* loadModelsIndex(int* length){
 }
 void getModelFromIndex(int id, Model* model);
 
-Model* loadModelObj(char* path, Model* model){
+void loadModelObj(char* path, Model* model){
 	const int DEFAULT_SIZE = 100;
 	// check if meshpath is set
 	/*
@@ -113,51 +120,60 @@ Model* loadModelObj(char* path, Model* model){
 	*/
 	FILE* file = fopen(path, "r");
 	if(file == NULL){
-		return NULL;
+		return;
 	}
 	//TODO Add reallocation
-	unsigned int vertexIndex = 0;
-	unsigned int textureCoordinateIndex = 0;
-	unsigned int vertexNormalIndex = 0;
-	unsigned int faceIndex = 0;
+	unsigned int verticesLen = 0;
+	unsigned int textureCoordinatesLen = 0;
+	unsigned int vertexNormalsLen = 0;
+	unsigned int indicesLen = 0;
 	Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
 	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
 	//Normal* vertexNormals = malloc(sizeof(VertexNormal)*DEFAULT_SIZE);
-	Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
+	//Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
+	int* indices = malloc(sizeof(int)*DEFAULT_SIZE*3);
 	// TODO Remake to work line by line and can scan multiple ways
 	// IMPORTANT: obj indexing starts at 1
-	char startSymbol[20];
+	//char startSymbol[20];
 	char line[128];
-	while(1){
-		fgets(line, 128, file);
-		int res = sscanf(line, "%s", startSymbol);
-		if(res==EOF){
-			break;
+	while(fgets(line, 128, file)){
+		printf("Line: %s\n", line);
+
+		if(line[0] == 'v' && line[1] == ' '){
+			sscanf(line, "v %f %f %f\n", &vertices[verticesLen].x, &vertices[verticesLen].y, &vertices[verticesLen].z);
+			verticesLen++;
+			printf("Vertex Added NO %i\n", verticesLen);
 		}
-		if(strcmp(startSymbol, "v") == 0){
-			sscanf(line, "v %f %f %f\n", &vertices[vertexIndex].x, &vertices[vertexIndex].y, &vertices[vertexIndex].z);
-			vertexIndex++;
-		}
-		else if(strcmp(startSymbol, "vt") == 0){
-			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinateIndex], &textureCoordinates[2*textureCoordinateIndex+1]);
-			textureCoordinateIndex++;
+		else if(line[0] == 'v' && line[1] == 't'){
+			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
+			printf("Texture\n");
+			textureCoordinatesLen++;
 		}
 		/*
 		else if(strcmp(startSymbol, "vn") == 0){
-			sscanf(line, "vn %f %f %f\n", vertexNormal[vertexNormalIndex].x, vertexNormal[vertexNormalIndex].y, vertexNormal[vertexNormalIndex].z);
-			vertexNormalIndex++;
+			sscanf(line, "vn %f %f %f\n", vertexNormal[vertexNormalLen].x, vertexNormal[vertexNormalLen].y, vertexNormal[vertexNormalLen].z);
+			vertexNormalLen++;
 		}
 		*/
-		else if(strcmp(startSymbol, "f") == 0){
+		else if(line[0] == 'f' && line[1] == ' '){
 			// possible formats are:
 			// f v v v
 			// f v/vt v/vt v/vt
 			// f v/vt/vn v/vt/vn v/vt/vn
 			// f v//vn v//vn v//vn
+			/*
+			if(3 = sscanf(line, "f %d %d %d", &indices[indicesLen*3], &indices[indicesLen*3+1], &indices[indicesLen*3+2]
+			if(strstr(line, "f %d/%d/%d %d/%d/%d %d/%d/%d")){
+				printf("f d/d/d d/d/d d/d/d");
+			}
+			*/
+			/*
 			if(EOF!=sscanf(line, "f %d %d %d", &faces->v1, &faces->v2, &faces->v3)){
+				printf("Added f type 1\n");
 				continue;
 			}
-			/*if(EOF!=sscanf(line, "f %d %d %d", &faces[faceIndex++].v1, &vertices[vertexIndex++].y, &vertices[vertexIndex].z)){
+			*/
+			/*if(EOF!=sscanf(line, "f %d %d %d", &faces[faceLen++].v1, &vertices[vertexLen++].y, &vertices[vertexLen].z)){
 				continue;
 			}
 			*/
@@ -225,6 +241,8 @@ int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into 
 };
 
 int main(){
+	Model* model;
+	loadModelObj("src/models/cube.obj" , model);
 	GLFWwindow* window = NULL;
 	if(!glfwInit()){
 		return -1;
@@ -301,7 +319,7 @@ int main(){
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
 	// position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 	// color
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
