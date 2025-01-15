@@ -32,6 +32,7 @@ typedef struct{
 	unsigned int VAO;
 	unsigned int VBO;
 	unsigned int EBO;
+	unsigned int indicesNo;
 	unsigned int texture;
 }Model;
 
@@ -40,6 +41,11 @@ typedef struct{
 	int width;
 	int height;
 }BMPImage;
+
+// TODO make camera struct
+typedef struct{
+	char name[20];
+}Camera;
 
 float vertices[] = {
     // positions          // colors           // texture coords
@@ -72,12 +78,24 @@ typedef struct { // vertex indices
 	unsigned int v3;
 }Face;
 #pragma pack(pop)
+//TODO finish this
+/*
+void lookAt(GLFWwindow* window){
+	int mouseX, mouseY;
+	int width, height;
+	glfwGetWindowSize(window, &width, &height);
+	glfwGetCursorPos(&mouseX, &mouseY);
+	glfwSetCursorPos(width/2, height/2);
+	printf("%d %d\n", mouseX, mouseY);
+}
+*/
 
 // Needs to take in the data and lengths of data and turn it into the buffers and store the buffers in the model
 // return new or modify?
 
 //TODO add texture here? or elsewhere
 Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
+	model->indicesNo = indicesLen;
     glGenVertexArrays(1, &model->VAO);
     glGenBuffers(1, &model->VBO);
     glGenBuffers(1, &model->EBO);
@@ -143,15 +161,15 @@ Model* loadModelsIndex(int* length){
 }
 void getModelFromIndex(int id, Model* model);
 
-void loadModelObj(char* path, Model* model){
-	const int DEFAULT_SIZE = 100;
+void loadModelObj(Model* model){
+	const int DEFAULT_SIZE = 500000;
 	// check if meshpath is set
 	/*
 	if(model->meshPath==NULL){
 		return NULL;
 	}
 	*/
-	FILE* file = fopen(path, "r");
+	FILE* file = fopen(model->meshPath, "r");
 	if(file == NULL){
 		return;
 	}
@@ -159,12 +177,12 @@ void loadModelObj(char* path, Model* model){
 	unsigned int verticesLen = 0;
 	unsigned int textureCoordinatesLen = 0;
 	unsigned int vertexNormalsLen = 0;
-	unsigned int indicesLen = 0;
+	unsigned int faceIndex = 0;
 	Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
 	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
 	//Normal* vertexNormals = malloc(sizeof(VertexNormal)*DEFAULT_SIZE);
 	//Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
-	int* indices = malloc(sizeof(int)*DEFAULT_SIZE*3);
+	unsigned int* indices = malloc(sizeof(unsigned int)*DEFAULT_SIZE*3);
 	// TODO Remake to work line by line and can scan multiple ways
 	// IMPORTANT: obj indexing starts at 1
 	//char startSymbol[20];
@@ -194,26 +212,49 @@ void loadModelObj(char* path, Model* model){
 			// f v/vt v/vt v/vt
 			// f v/vt/vn v/vt/vn v/vt/vn
 			// f v//vn v//vn v//vn
-			/*
-			if(3 = sscanf(line, "f %d %d %d", &indices[indicesLen*3], &indices[indicesLen*3+1], &indices[indicesLen*3+2]
-			if(strstr(line, "f %d/%d/%d %d/%d/%d %d/%d/%d")){
-				printf("f d/d/d d/d/d d/d/d");
-			}
-			*/
-			/*
-			if(EOF!=sscanf(line, "f %d %d %d", &faces->v1, &faces->v2, &faces->v3)){
-				printf("Added f type 1\n");
+			if(3 == sscanf(line, "f %d %d %d", &indices[faceIndex*3], &indices[faceIndex*3+1], &indices[faceIndex*3+2])){
+				// obj starts at 1 not 0 index
+				// can I do &indices[faceIndex*3]-- ? or something
+				indices[faceIndex*3]--;
+				indices[faceIndex*3+1]--;
+				indices[faceIndex*3+2]--;
+				faceIndex++;
+				printf("f d d d");
 				continue;
 			}
-			*/
-			/*if(EOF!=sscanf(line, "f %d %d %d", &faces[faceLen++].v1, &vertices[vertexLen++].y, &vertices[vertexLen].z)){
-				continue;
-			}
-			*/
-			
-		}
+			int vt[3];
+			int vn[3];
+			if(9 == sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+						&indices[faceIndex*3], &vt[0], &vn[0],
+						&indices[faceIndex*3+1], &vt[1], &vn[1],
+						&indices[faceIndex*3+2], &vt[2], &vn[2])){
+				// obj starts at 1 not 0 index
+				// can I do &indices[faceIndex*3]-- ? or something
+				indices[faceIndex*3]--;
+				indices[faceIndex*3+1]--;
+				indices[faceIndex*3+2]--;
+				//TODO add vertex normal stuff
 
+				// set the texture coordinate stored in vertex
+				vertices[indices[faceIndex*3]].u = textureCoordinates[2*vt[0]];
+				vertices[indices[faceIndex*3]].v = textureCoordinates[2*vt[0]+1];
+
+				vertices[indices[faceIndex*3+1]].u = textureCoordinates[2*vt[1]];
+				vertices[indices[faceIndex*3+1]].v = textureCoordinates[2*vt[1]+1];
+
+				vertices[indices[faceIndex*3+2]].u = textureCoordinates[2*vt[2]];
+				vertices[indices[faceIndex*3+2]].v = textureCoordinates[2*vt[2]+1];
+
+				faceIndex++;
+				continue;
+			}
+				//printf("f d/d/d d/d/d d/d/d");
+		}
 	}
+	int indiceLen = faceIndex*3;
+	dataToBuffers(model, vertices, verticesLen, indices, indiceLen);
+	// TODO all that freeing stuff
+	fclose(file);
 }
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -336,8 +377,12 @@ int main(){
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
-	Model model;
-	dataToBuffers(&model, (Vertex*)vertices, 8, indices, 6);
+	Model model = {
+		.meshPath = "src/models/teapot.obj"
+	};
+	// will set with id system later
+	loadModelObj(&model);
+	//dataToBuffers(&model, (Vertex*)vertices, 8, indices, 6);
 
 	// Creating a texture with stb image
 	int width, height, nrChannels;
@@ -387,10 +432,10 @@ int main(){
 	0, 0, 0, 1
 	};
 	
-	float rot[] = {1.0, 0.0, 0.0};
-	float trans[] = {0.0, 0.0, -3.0};
+	float rot[] = {0.0, 0.0, 0.0};
+	float trans[] = {0.0, 0.0, -10.0};
 
-	glm_rotate((float (*)[4])modelMat, 0.5f, rot);
+	glm_rotate((float (*)[4])modelMat, 0.0f, rot);
 	glm_translate((float (*)[4])viewMat, trans);
 	glm_perspective(0.780f, (float)(880/600), 0.1f, 100.0f, (float(*)[4])projectionMat);
 
@@ -400,15 +445,23 @@ int main(){
 
 	while(!glfwWindowShouldClose(window)){
 		processInput(window);
+		//lookat(window);
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		// bind texture
-		glBindTexture(GL_TEXTURE_2D, model.texture);
+		//TODO make initalizer nullify fields
+		/*
+		if(model.texture!=NULL){
+			//glBindTexture(GL_TEXTURE_2D, model.texture);
+		}
+		*/
 		// render container
 		glUseProgram(shaderProgram);
         glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		//TODO remove wireframe after testing
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glDrawElements(GL_TRIANGLES, model.indicesNo, GL_UNSIGNED_INT, 0);
 //		glBindVertexArray(0);
 		// draw buffer swap
 		glfwSwapBuffers(window);
