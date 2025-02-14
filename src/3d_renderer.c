@@ -12,8 +12,17 @@
 
 #include <cglm/cglm.h>
 
+// Not in use currently
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+// TODO make functions structure independent where possible
+//
+// TODO add quaternions and controller math
+//
+// TODO Make Camera controls
+//
+// TODO Add delaunay triangulation
 
 // Specified in models.csv id,name,meshpath,texturepath
 const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
@@ -22,7 +31,33 @@ const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
 const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
 const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
 
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
 
+// add info to models.csv for default scaling, rot, pos etc
+// entities will have additional information like current pos, scaling, rot, etc in world space as well as movement vectors and the like
+typedef struct{
+	char* data;
+	int width;
+	int height;
+}BMPImage;
+
+//TODO add camera movement smoothing, interpolation, look at target, follow mouse etc
+// Do I add stuff for tracking in the struct like a target?
+// tracking speeds? limits? 
+// Homogeneous transformation matrix?
+// Quaternions?
+// Need to get a homogeneous transformation matrix for the view math but quarternions would be best for storing angles
+// make a positon struct that is transform, scale, and rot?
+typedef struct{
+	float x;
+	float y;
+	float z;
+	float q0;
+	float q1;
+	float q2;
+	float q3;
+}PosRot;
 
 typedef struct{
 	unsigned int id;
@@ -34,32 +69,21 @@ typedef struct{
 	unsigned int EBO;
 	unsigned int indicesNo;
 	unsigned int texture;
+	PosRot posRot;
 }Model;
 
-typedef struct{
-	char* data;
-	int width;
-	int height;
-}BMPImage;
-
-// TODO make camera struct
+// do we attach the camera to an object or object to the camera?
+// do we need a kill cam or stuff like that? changing scene with one active would caues a hanging reference
 typedef struct{
 	char name[20];
+	float fov;
+	PosRot posRot;
 }Camera;
 
-float vertices[] = {
-    // positions          // colors           // texture coords
-     0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-     0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
-    -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
-    -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left
-};
+// what do I put in the camera and what do I keep out if I want to be able to do multiple cameras?
 
-unsigned int indices[] = {  // note that we start from 0!
-    0, 1, 3,   // first triangle
-    1, 2, 3    // second triangle
-};
-
+// TODO change xyz to array?
+// float xyz and access by vertex.xyz[0] or vertex.x
 #pragma pack(push, 1)
 typedef struct {
 	float x;
@@ -68,6 +92,9 @@ typedef struct {
 	float r;
 	float g;
 	float b;
+	float nx; // vertexNormals
+	float ny;
+	float nz;
 	float u;
 	float v;
 }Vertex;
@@ -78,60 +105,49 @@ typedef struct { // vertex indices
 	unsigned int v3;
 }Face;
 #pragma pack(pop)
-//TODO finish this
-/*
-void lookAt(GLFWwindow* window){
-	int mouseX, mouseY;
-	int width, height;
-	glfwGetWindowSize(window, &width, &height);
-	glfwGetCursorPos(&mouseX, &mouseY);
-	glfwSetCursorPos(width/2, height/2);
-	printf("%d %d\n", mouseX, mouseY);
-}
-*/
-
-// Needs to take in the data and lengths of data and turn it into the buffers and store the buffers in the model
-// return new or modify?
 
 //TODO add texture here? or elsewhere
-Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
-	model->indicesNo = indicesLen;
-    glGenVertexArrays(1, &model->VAO);
-    glGenBuffers(1, &model->VBO);
-    glGenBuffers(1, &model->EBO);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(model->VAO);
+Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices){
+  glGenVertexArrays(1, &model->VAO);
+  glGenBuffers(1, &model->VBO);
+  glGenBuffers(1, &model->EBO);
+  // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+  glBindVertexArray(model->VAO);
 
-    glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*indicesLen, indices, GL_STATIC_DRAW);
+  glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
 
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*model->indicesNo, indices, GL_STATIC_DRAW);
+
+	int stride = sizeof(Vertex);
 	// position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, 8 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, stride, (void*)0);
+  glEnableVertexAttribArray(0);
 	// color
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, stride, (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
-	// texture coordinate
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	// vertex normal
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, stride, (void*)(6 * sizeof(float)));
 	glEnableVertexAttribArray(2);
+	// texture coordinate
+	glVertexAttribPointer(3, 2, GL_FLOAT, GL_TRUE, stride, (void*)(9 * sizeof(float)));
+	glEnableVertexAttribArray(3);
 
-    // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+  // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
-    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
+  //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-    glBindVertexArray(0);
+  // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
+  // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
+  glBindVertexArray(0);
 	return model;
 }
 	
-
-//TODO change this to load models based on scene csv
+// TODO modify this to be more useful
 Model* loadModelsIndex(int* length){
 	char* path = "src/models.csv";
 	FILE* file = fopen(path, "r");
@@ -155,14 +171,16 @@ Model* loadModelsIndex(int* length){
 	fclose(file);
 	*length = modelIndex;
 	for(int i = 0; i<modelIndex; i++){
-		printf("id: %d, name: %s, path: %s\n", models[i].id, models[i].name, models[i].meshPath);
+		//printf("id: %d, name: %s, path: %s\n", models[i].id, models[i].name, models[i].meshPath);
 	}
 	return models;
 }
 void getModelFromIndex(int id, Model* model);
 
+// TODO Finish loading code
+// TODO Change to generic type stuff 
 void loadModelObj(Model* model){
-	const int DEFAULT_SIZE = 500000;
+	const int DEFAULT_SIZE = 50000;
 	// check if meshpath is set
 	/*
 	if(model->meshPath==NULL){
@@ -188,16 +206,16 @@ void loadModelObj(Model* model){
 	//char startSymbol[20];
 	char line[128];
 	while(fgets(line, 128, file)){
-		printf("Line: %s\n", line);
+		//printf("Line: %s\n", line);
 
 		if(line[0] == 'v' && line[1] == ' '){
 			sscanf(line, "v %f %f %f\n", &vertices[verticesLen].x, &vertices[verticesLen].y, &vertices[verticesLen].z);
 			verticesLen++;
-			printf("Vertex Added NO %i\n", verticesLen);
+			//printf("Vertex Added NO %i\n", verticesLen);
 		}
 		else if(line[0] == 'v' && line[1] == 't'){
 			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
-			printf("Texture\n");
+			//printf("Texture\n");
 			textureCoordinatesLen++;
 		}
 		/*
@@ -219,11 +237,25 @@ void loadModelObj(Model* model){
 				indices[faceIndex*3+1]--;
 				indices[faceIndex*3+2]--;
 				faceIndex++;
-				printf("f d d d");
+				//printf("f d d d");
 				continue;
 			}
 			int vt[3];
 			int vn[3];
+
+      // TODO Finish this
+      int b = 0;
+      int* f = &b;
+      if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], f, f, &indices[faceIndex*3+1], f, f, &indices[faceIndex*3+2], f, f)){
+				indices[faceIndex*3]--;
+				indices[faceIndex*3+1]--;
+				indices[faceIndex*3+2]--;
+				faceIndex++;
+				//printf("f d d d");
+				continue;
+      }
+			//TODO Finish this
+      /*
 			if(9 == sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
 						&indices[faceIndex*3], &vt[0], &vn[0],
 						&indices[faceIndex*3+1], &vt[1], &vn[1],
@@ -248,17 +280,24 @@ void loadModelObj(Model* model){
 				faceIndex++;
 				continue;
 			}
+      */
 				//printf("f d/d/d d/d/d d/d/d");
 		}
 	}
-	int indiceLen = faceIndex*3;
-	dataToBuffers(model, vertices, verticesLen, indices, indiceLen);
+	model->indicesNo = faceIndex*3;
+
+  /*
+	// TODO calculate vertex normals
+  DCEL* dcel;
+	dcel = dataToHalfEdge(vertices, verticesLen, indices, model->indicesNo);
+  free(dcel);
+  */
+	dataToBuffers(model, vertices, verticesLen, indices);
 	// TODO all that freeing stuff
 	fclose(file);
 }
 
-static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
+static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }  
 
@@ -294,6 +333,7 @@ int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into 
 		// not correct file type
 		printf("Invalid image type\n");
 	}
+	// TODO account for endianness
 	// cause we are reading this bytewise we need to cast the data
 	width = *(int*)&data[0x12]; // is two bytes but should be ok like this?
 	height = *(int*)&data[0x16];
@@ -377,8 +417,13 @@ int main(){
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
+	Camera camera = {
+		.name = "Fox Cam",
+		.fov = 0.7f // around the fov for a 50mm lens in radians
+	};
+
 	Model model = {
-		.meshPath = "src/models/teapot.obj"
+		.meshPath = "src/models/multiObject.obj"
 	};
 	// will set with id system later
 	loadModelObj(&model);
@@ -435,6 +480,8 @@ int main(){
 	float rot[] = {0.0, 0.0, 0.0};
 	float trans[] = {0.0, 0.0, -10.0};
 
+	// Move the camera
+
 	glm_rotate((float (*)[4])modelMat, 0.0f, rot);
 	glm_translate((float (*)[4])viewMat, trans);
 	glm_perspective(0.780f, (float)(880/600), 0.1f, 100.0f, (float(*)[4])projectionMat);
@@ -444,8 +491,11 @@ int main(){
 	glUniformMatrix4fv(modelMatLoc, 1, GL_FALSE, (float*)modelMat);
 
 	while(!glfwWindowShouldClose(window)){
+		// calculate delta time
+		float currentFrame = glfwGetTime();
+		deltaTime = currentFrame - lastFrame;
+		lastFrame = currentFrame;
 		processInput(window);
-		//lookat(window);
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -460,7 +510,7 @@ int main(){
 		glUseProgram(shaderProgram);
         glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
 		//TODO remove wireframe after testing
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glDrawElements(GL_TRIANGLES, model.indicesNo, GL_UNSIGNED_INT, 0);
 //		glBindVertexArray(0);
 		// draw buffer swap
