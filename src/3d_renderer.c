@@ -11,6 +11,9 @@
 #include <unistd.h>
 
 #include <cglm/cglm.h>
+#include <cglm/vec3.h>
+
+#include <math.h>
 
 // Not in use currently
 #define STB_IMAGE_IMPLEMENTATION
@@ -67,7 +70,7 @@ typedef struct{
 	unsigned int VAO;
 	unsigned int VBO;
 	unsigned int EBO;
-	unsigned int indicesNo;
+	unsigned int indicesLen;
 	unsigned int texture;
 	PosRot posRot;
 }Model;
@@ -82,22 +85,33 @@ typedef struct{
 
 // what do I put in the camera and what do I keep out if I want to be able to do multiple cameras?
 
-// TODO change xyz to array?
+// TODO  decide if xyz, rgb, etc should be a vec type
 // float xyz and access by vertex.xyz[0] or vertex.x
 #pragma pack(push, 1)
 typedef struct {
-	float x;
-	float y;
-	float z;
+  union{
+    float pos[3];
+    struct{
+      float x;
+      float y;
+      float z;
+    };
+  };
 	float r;
 	float g;
 	float b;
-	float nx; // vertexNormals
-	float ny;
-	float nz;
+  union{
+    float vn[3];
+    struct{
+      float nx; // vertexNormals
+      float ny;
+      float nz;
+    };
+  };
 	float u;
 	float v;
 }Vertex;
+
 
 typedef struct { // vertex indices
 	unsigned int v1;
@@ -106,8 +120,95 @@ typedef struct { // vertex indices
 }Face;
 #pragma pack(pop)
 
+// TODO calculate vertex normals
+// make vertex independent?
+// TODO make vector library
+
+void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
+  // for each vertex find adjacent faces and calculate their normals
+  // trying with dotproduct. may need to convert cos theta to theta
+  // TODO rewrite as compute shader
+  printf("Started calcVertexNormals\n");
+  float* faceNormals = malloc(indicesLen * sizeof(float)*3);
+  float* faceSurfaceArea = malloc(indicesLen/3 * sizeof(float));
+  for(int i = 0; i < indicesLen/3; i++){
+    // face a normal
+    // face abc normal is cross 
+    //    C
+    //   / \
+    //  /   \
+    // /     \
+    //A-------B 
+    //
+    // face normal is bc x ba
+    // bc is c - b
+    // ba is a - b
+    // n is normal
+
+    float* n = &faceNormals[3*i];
+    float bc[3];
+    float ba[3];
+    float* a = vertices[indices[i*3+0]].pos;
+    float* b = vertices[indices[i*3+1]].pos;
+    float* c = vertices[indices[i*3+2]].pos;
+    glm_vec3_sub(c, b, bc);
+    glm_vec3_norm(bc);
+    glm_vec3_sub(a, b, ba);
+    glm_vec3_norm(ba);
+
+    glm_vec3_cross(bc, ba, n);
+    
+    // area of face abc is 0.5*||AB X AC||
+    faceSurfaceArea[i] = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
+    faceSurfaceArea[i] = sqrtf(faceSurfaceArea[i]) * 0.5;
+
+    glm_vec3_norm(n);
+  }
+  // TODO optimise with dcel
+  // for each face a
+  for(int i = 0; i < indicesLen/3; i++){
+    // face normal by value
+    float n[3] = {faceNormals[3*i], faceNormals[3*i+1], faceNormals[3*i+2]};
+    unsigned int* faceVertices = &indices[3*i];
+    // for each vertices in face a
+    for(int fv = 0; fv < 3; fv++){
+      // for each vertex other than in face a check for matching vertices
+      for(int b = 0; b < indicesLen; b++){
+        // skip current face
+        if(b/3 == i){
+          continue;
+        }
+        // check each vertex in face for match
+        for(int v = 0; v < 3; v++){
+          if(b==faceVertices[v]){
+            // angle between vectors
+            // TODO check if can get away without using inv cos
+            // \theta = \acos{\frac{a\cdot b}{\left|a\right|\left|b\right|}}
+            float t1[3];
+            float t2[3];
+            // shared - other , shared - other2
+            glm_vec3_sub(vertices[b].pos, vertices[faceVertices[(v+1)%3]].pos, t1);
+            glm_vec3_sub(vertices[b].pos, vertices[faceVertices[(v+2)%3]].pos, t2);
+            float angle = glm_vec3_angle(t1, t2);
+            float temp[3];
+            glm_vec3_scale((float *)&faceNormals[b/3], faceSurfaceArea[b/3], temp);
+            glm_vec3_muladds(temp, angle, n);
+          }
+        }
+      }
+      glm_vec3_norm(n);
+      glm_vec3_copy(n, vertices[3*i+fv].vn);
+    }
+  }
+  free(faceNormals);
+  free(faceSurfaceArea);
+  printf("Finished calcVertexNormals\n");
+}
+
+
 //TODO add texture here? or elsewhere
 Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices){
+  printf("Started dataToBuffers\n");
   glGenVertexArrays(1, &model->VAO);
   glGenBuffers(1, &model->VBO);
   glGenBuffers(1, &model->EBO);
@@ -115,12 +216,13 @@ Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, u
   glBindVertexArray(model->VAO);
 
 
+  printf("Test1\n\n");
   glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
+  printf("Test2\n");
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*model->indicesNo, indices, GL_STATIC_DRAW);
-
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*model->indicesLen, indices, GL_STATIC_DRAW);
 	int stride = sizeof(Vertex);
 	// position
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, stride, (void*)0);
@@ -144,6 +246,7 @@ Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, u
   // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
   // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
   glBindVertexArray(0);
+  printf("Finished dataToBuffers\n");
 	return model;
 }
 	
@@ -284,7 +387,8 @@ void loadModelObj(Model* model){
 				//printf("f d/d/d d/d/d d/d/d");
 		}
 	}
-	model->indicesNo = faceIndex*3;
+  unsigned int indicesLen = faceIndex*3;
+	model->indicesLen = indicesLen; 
 
   /*
 	// TODO calculate vertex normals
@@ -292,6 +396,7 @@ void loadModelObj(Model* model){
 	dcel = dataToHalfEdge(vertices, verticesLen, indices, model->indicesNo);
   free(dcel);
   */
+  calcVertexNormals(vertices, verticesLen, indices, indicesLen);
 	dataToBuffers(model, vertices, verticesLen, indices);
 	// TODO all that freeing stuff
 	fclose(file);
@@ -425,7 +530,8 @@ int main(){
 	Model model = {
 		.meshPath = "src/models/multiObject.obj"
 	};
-	// will set with id system later
+  
+// will set with id system later
 	loadModelObj(&model);
 	//dataToBuffers(&model, (Vertex*)vertices, 8, indices, 6);
 
@@ -511,7 +617,7 @@ int main(){
         glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
 		//TODO remove wireframe after testing
   	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDrawElements(GL_TRIANGLES, model.indicesNo, GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
 //		glBindVertexArray(0);
 		// draw buffer swap
 		glfwSwapBuffers(window);
