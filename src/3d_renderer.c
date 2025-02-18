@@ -129,7 +129,7 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
   // trying with dotproduct. may need to convert cos theta to theta
   // TODO rewrite as compute shader
   printf("Started calcVertexNormals\n");
-  float* faceNormals = malloc(indicesLen * sizeof(float)*3);
+  float* faceNormals = malloc(indicesLen/3 * sizeof(float)*3);
   float* faceSurfaceArea = malloc(indicesLen/3 * sizeof(float));
   for(int i = 0; i < indicesLen/3; i++){
     // face a normal
@@ -146,60 +146,129 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
     // n is normal
 
     float* n = &faceNormals[3*i];
-    float bc[3];
-    float ba[3];
+    float ab[3];
+    float ac[3];
     float* a = vertices[indices[i*3+0]].pos;
     float* b = vertices[indices[i*3+1]].pos;
     float* c = vertices[indices[i*3+2]].pos;
-    glm_vec3_sub(c, b, bc);
-    glm_vec3_norm(bc);
-    glm_vec3_sub(a, b, ba);
-    glm_vec3_norm(ba);
+    glm_vec3_sub(b, a, ab);
+    glm_vec3_sub(c, a, ac);
 
-    glm_vec3_cross(bc, ba, n);
+    glm_vec3_cross(ab, ac, n);
     
     // area of face abc is 0.5*||AB X AC||
     faceSurfaceArea[i] = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
     faceSurfaceArea[i] = sqrtf(faceSurfaceArea[i]) * 0.5;
+    printf("faceSurfaceArea: %f\n",faceSurfaceArea[i]);
 
-    glm_vec3_norm(n);
+    //glm_vec3_normalize(ab);
+    //glm_vec3_normalize(ac);
+    glm_vec3_cross(ab, ac, n);
+    glm_vec3_normalize(n);
+    /*
+    n[0] = 0;
+    n[1] = 0;
+    n[2] = 1;
+    */
+    printf("faceNormal:\t%f\t%f\t%f\n",n[0],n[1],n[2]);
   }
   // TODO optimise with dcel
-  // for each face a
+  // for every vertex a check every face for matching vertex
+  /*
+  for(unsigned int a = 0; a < indicesLen/3; a++){
+    float n[3] = {faceNormals[a], faceNormals[a+1], faceNormals[a+2]};
+    // for each vertex in face a
+    for(int av = 0; av < 3; av++){
+      // for each other triangle check for match
+      for(unsigned int b = 0; b < indicesLen/3; b++){
+      // skip current triangle a
+        if(a == b){
+          continue;
+        }
+        // check each vertex in face b for match
+        for(int bv = 0; bv < 3; bv++){
+          if(indices[a+av] == indices[b+bv]){
+            // shared - other, shared - other2
+            float t1[3];
+            float t2[3];
+            // compiler might optimize this in the wrong way
+            // shared - other, shared - other 2
+            glm_vec3_sub(vertices[indices[a+av]].pos, vertices[indices[(av+1)%3+a]].pos, t1);
+            glm_vec3_sub(vertices[indices[a+av]].pos, vertices[indices[(av+2)%3+a]].pos, t2);
+            float angle = glm_vec3_angle(t1, t2);
+            float temp[3];
+            glm_vec3_scale((float *)&faceNormals[b*3], faceSurfaceArea[b], temp);
+            glm_vec3_muladds(temp, angle, n);
+          }
+        }
+      }
+      glm_vec3_normalize(n);
+      printf("vertexNormal:\t%f\t%f\t%f\n",n[0],n[1],n[2]);
+      //printf("\015Processing Vertex Normals:\t%f%%", 100.0*((float)a/indicesLen));
+      glm_vec3_copy(n, vertices[indices[a]].vn);
+    }
+  }
+  */
+  // for every vertex check all faces for match
+  for(int v = 0; v < verticesLen; v++){
+    float n[3] = {0, 0, 0};
+    // check every face for vertex match
+    for(int i = 0; i < indicesLen; i++){
+      if(indices[i] == v){
+        // trying finding angle within face b around shared vert
+        float temp[3];
+        glm_vec3_scale(&faceNormals[3*(i/3)], faceSurfaceArea[i/3],temp);
+        glm_vec3_add(n, temp, n);
+        continue;
+      }
+    }
+    glm_vec3_normalize(n);
+    glm_vec3_copy(n, vertices[v].vn);
+  }
+
+
+/*
   for(int i = 0; i < indicesLen/3; i++){
     // face normal by value
     float n[3] = {faceNormals[3*i], faceNormals[3*i+1], faceNormals[3*i+2]};
-    unsigned int* faceVertices = &indices[3*i];
+    unsigned int* faceIndices = &indices[3*i];
     // for each vertices in face a
     for(int fv = 0; fv < 3; fv++){
-      // for each vertex other than in face a check for matching vertices
-      for(int b = 0; b < indicesLen; b++){
+      // for each face other than in face a check for matching vertices
+      for(int b = 0; b < indicesLen/3; b++){
         // skip current face
-        if(b/3 == i){
+        if(b == i){
           continue;
         }
         // check each vertex in face for match
+        // check each vertex in face a for match with face b
         for(int v = 0; v < 3; v++){
-          if(b==faceVertices[v]){
+          if(indices[b*3+v]==indices[i*3+fv]){
             // angle between vectors
             // TODO check if can get away without using inv cos
             // \theta = \acos{\frac{a\cdot b}{\left|a\right|\left|b\right|}}
             float t1[3];
             float t2[3];
             // shared - other , shared - other2
-            glm_vec3_sub(vertices[b].pos, vertices[faceVertices[(v+1)%3]].pos, t1);
-            glm_vec3_sub(vertices[b].pos, vertices[faceVertices[(v+2)%3]].pos, t2);
+            //glm_vec3_sub(vertices[faceIndices[fv]].pos, vertices[indices[3*(i/3)+(fv+1)%3]].pos, t1);
+            //glm_vec3_sub(vertices[faceIndices[fv]].pos, vertices[indices[3*(i/3)+(fv+2)%3]].pos, t2);
+            glm_vec3_sub(vertices[indices[i+fv]].pos, vertices[indices[i+(fv+1)%3]].pos, t1);
+            glm_vec3_sub(vertices[indices[i+fv]].pos, vertices[indices[i+(fv+2)%3]].pos, t2);
             float angle = glm_vec3_angle(t1, t2);
+            printf("angle: %f\n",angle);
             float temp[3];
-            glm_vec3_scale((float *)&faceNormals[b/3], faceSurfaceArea[b/3], temp);
-            glm_vec3_muladds(temp, angle, n);
+            glm_vec3_scale((float *)&faceNormals[b], faceSurfaceArea[b], temp);
+            //glm_vec3_muladds(temp, 1, n);
+            glm_vec3_muladds((float*)&faceNormals[b], 1, n);
           }
         }
       }
-      glm_vec3_norm(n);
-      glm_vec3_copy(n, vertices[3*i+fv].vn);
+      glm_vec3_normalize(n);
+      //printf("vertexNormal:\t%f\t%f\t%f\n",n[0],n[1],n[2]);
+      glm_vec3_copy(n, vertices[indices[3*i+fv]].vn);
     }
   }
+  */
   free(faceNormals);
   free(faceSurfaceArea);
   printf("Finished calcVertexNormals\n");
@@ -283,7 +352,7 @@ void getModelFromIndex(int id, Model* model);
 // TODO Finish loading code
 // TODO Change to generic type stuff 
 void loadModelObj(Model* model){
-	const int DEFAULT_SIZE = 50000;
+	const int DEFAULT_SIZE = 500000;
 	// check if meshpath is set
 	/*
 	if(model->meshPath==NULL){
@@ -590,7 +659,7 @@ int main(){
 
 	glm_rotate((float (*)[4])modelMat, 0.0f, rot);
 	glm_translate((float (*)[4])viewMat, trans);
-	glm_perspective(0.780f, (float)(880/600), 0.1f, 100.0f, (float(*)[4])projectionMat);
+	glm_perspective(0.780f, (float)(880.0/600.0), 0.1f, 100.0f, (float(*)[4])projectionMat);
 
 	glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
 	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
@@ -604,7 +673,9 @@ int main(){
 		processInput(window);
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// bind texture
 		//TODO make initalizer nullify fields
 		/*
@@ -614,11 +685,10 @@ int main(){
 		*/
 		// render container
 		glUseProgram(shaderProgram);
-        glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+    glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
 		//TODO remove wireframe after testing
-  	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
-//		glBindVertexArray(0);
 		// draw buffer swap
 		glfwSwapBuffers(window);
 		glfwPollEvents();

@@ -4,6 +4,7 @@ in vec3 outputColor;
 in vec3 vertexNormal;
 in vec2 texCoord;
 out vec4 FragColor;
+in vec3 fragPos;
 
 /*
 struct Material{
@@ -19,6 +20,11 @@ uniform Material material;
 uniform sampler2D texture1;
 
 void main(){
+  // TODO set up real lights
+  vec3 norm = normalize(vertexNormal);
+  vec3 vecLight = vec3(1.2, 1.0, 2.0);
+  vec3 lightDir = normalize(vecLight - fragPos);
+  float diff = max(dot(norm, vecLight), 0.0);
 	/*
 	// ambient
 	vec3 ambient = lightColor * material.ambient;
@@ -38,7 +44,16 @@ void main(){
 	vec3 result = ambient + diffuse + specular;
 
 */
-	FragColor = texture(texture1, texCoord);
-	FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+//	FragColor = texture(texture1, texCoord);
+	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
+  // basic hue shift
+	vec4 baseColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
+  //FragColor = baseColor * vec4(vec3(diff), 1.0);
+  FragColor = vec4(vertexNormal, 1.0);
+  //FragColor = normalize(baseColor + vec4(0.8*diff, 0.0, -0.8*diff, 1.0f));
+	FragColor = vec4(vec3(1.0f, 0.5f, 0.2f)*diff, 1.0f);
+
+	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
 //	FragColor = vec4(result, 1.0);
 }
