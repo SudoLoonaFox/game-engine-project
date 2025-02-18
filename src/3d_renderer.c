@@ -522,7 +522,7 @@ int main(){
 	};
 
 	Model model = {
-		.meshPath = "src/models/multiObject.obj"
+		.meshPath = "src/models/fox.obj"
 	};
   
 // will set with id system later
@@ -592,9 +592,22 @@ int main(){
 
 	while(!glfwWindowShouldClose(window)){
 		// calculate delta time
+	  float modelMat[16] = {
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1
+	};
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
+	  float rot[] = {0.0, 1.0, 0.0};
+	  float trans[] = {0.0, -3.0, 0.0};
+	  glm_translate((float (*)[4])modelMat, trans);
+	  glm_rotate((float (*)[4])modelMat, currentFrame*2, rot);
+    float scale[3] = {10.0, 10.0, 10.0};
+	  glm_scale((float (*)[4])modelMat, scale);
+	  glUniformMatrix4fv(modelMatLoc, 1, GL_FALSE, (float*)modelMat);
 		processInput(window);
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
