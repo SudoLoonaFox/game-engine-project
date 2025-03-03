@@ -17,11 +17,11 @@ uniform vec3 scale;
 
 void main(){
   vec3 model = aPos;
+  model = scale * model;
   //model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
   model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
   model = translation + model;
   // rotate by quaternion
-  //model = scale * model;
 	gl_Position = projection * view * vec4(model, 1);
 	outputColor = aColor;
   fragPos = model.xyz;
