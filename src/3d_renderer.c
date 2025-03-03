@@ -50,17 +50,27 @@ typedef struct{
 // tracking speeds? limits? 
 // Homogeneous transformation matrix?
 // Quaternions?
-// Need to get a homogeneous transformation matrix for the view math but quarternions would be best for storing angles
-// make a positon struct that is transform, scale, and rot?
-typedef struct{
-	float x;
-	float y;
-	float z;
-	float q0;
-	float q1;
-	float q2;
-	float q3;
-}PosRot;
+// Need to get a homogeneous transformation matrix for the view math but quaternions would be best for storing angles
+// make a position struct that is transform, scale, and rot?
+
+typedef union{
+  float pos[3];
+  struct{
+    float x;
+    float y;
+    float z;
+  };
+}Positon;
+
+typedef union{
+  float q[4];
+  struct{
+    float x;
+    float y;
+    float z;
+    float w;
+  };
+}Quaternion;
 
 typedef struct{
 	unsigned int id;
@@ -72,7 +82,10 @@ typedef struct{
 	unsigned int EBO;
 	unsigned int indicesLen;
 	unsigned int texture;
-	PosRot posRot;
+  Positon pos;
+	Quaternion rot;
+  float scale;
+  float modelMat[16];
 }Model;
 
 // do we attach the camera to an object or object to the camera?
@@ -80,10 +93,17 @@ typedef struct{
 typedef struct{
 	char name[20];
 	float fov;
-	PosRot posRot;
+  Positon pos;
+  Quaternion rot;
 }Camera;
 
-// what do I put in the camera and what do I keep out if I want to be able to do multiple cameras?
+void axisAngleToQuat(float axis[3], float theta, float dest[4]){
+  float s = sin(theta/2);
+  dest[0] = axis[0] * s;
+  dest[1] = axis[1] * s;
+  dest[2] = axis[2] * s;
+  dest[3] = cos(theta/2);
+}
 
 // TODO  decide if xyz, rgb, etc should be a vec type
 // float xyz and access by vertex.xyz[0] or vertex.x
@@ -159,7 +179,7 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
     // area of face abc is 0.5*||AB X AC||
     faceSurfaceArea[i] = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
     faceSurfaceArea[i] = sqrtf(faceSurfaceArea[i]) * 0.5;
-    printf("faceSurfaceArea: %f\n",faceSurfaceArea[i]);
+    //printf("faceSurfaceArea: %f\n",faceSurfaceArea[i]);
 
     //glm_vec3_normalize(ab);
     //glm_vec3_normalize(ac);
@@ -170,7 +190,7 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
     n[1] = 0;
     n[2] = 1;
     */
-    printf("faceNormal:\t%f\t%f\t%f\n",n[0],n[1],n[2]);
+    //printf("faceNormal:\t%f\t%f\t%f\n",n[0],n[1],n[2]);
   }
   // for every vertex check all faces for match
   for(int v = 0; v < verticesLen; v++){
@@ -522,7 +542,7 @@ int main(){
 	};
 
 	Model model = {
-		.meshPath = "src/models/fox.obj"
+		.meshPath = "src/models/teapot.obj"
 	};
   
 // will set with id system later
@@ -552,10 +572,6 @@ int main(){
 	//local space -> model matrix -> world space -> view matrix -> view space -> projection matrix -> clip space -> viewport transform -> screen space
 	//TODO abstract this awful code
 
-	unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
-	unsigned int viewMatLoc = glGetUniformLocation(shaderProgram, "view");
-	unsigned int modelMatLoc = glGetUniformLocation(shaderProgram, "model");
-
 	float modelMat[16] = {
 	1, 0, 0, 0,
 	0, 1, 0, 0,
@@ -582,36 +598,41 @@ int main(){
 
 	// Move the camera
 
-	glm_rotate((float (*)[4])modelMat, 0.0f, rot);
 	glm_translate((float (*)[4])viewMat, trans);
 	glm_perspective(0.780f, (float)(880.0/600.0), 0.1f, 100.0f, (float(*)[4])projectionMat);
 
+	unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
+	unsigned int viewMatLoc = glGetUniformLocation(shaderProgram, "view");
+	unsigned int translationLoc = glGetUniformLocation(shaderProgram, "translation");
+	unsigned int rotationLoc = glGetUniformLocation(shaderProgram, "rotation");
+	unsigned int scaleLoc = glGetUniformLocation(shaderProgram, "scale");
+
 	glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
 	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
-	glUniformMatrix4fv(modelMatLoc, 1, GL_FALSE, (float*)modelMat);
 
 	while(!glfwWindowShouldClose(window)){
 		// calculate delta time
-	  float modelMat[16] = {
-	1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	0, 0, 0, 1
-	};
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
-	  float rot[] = {0.0, 1.0, 0.0};
-	  float trans[] = {0.0, -3.0, 0.0};
-	  glm_translate((float (*)[4])modelMat, trans);
-	  glm_rotate((float (*)[4])modelMat, currentFrame*2, rot);
-    float scale[3] = {10.0, 10.0, 10.0};
-	  glm_scale((float (*)[4])modelMat, scale);
-	  glUniformMatrix4fv(modelMatLoc, 1, GL_FALSE, (float*)modelMat);
+
+	  float modelMat[16];
+	  float trans[] = {3.0, 0.0, -10.0};
+    //float axis[3] = {0, 1, 0};
+    float axis[3] = {0.707107, 0.707107, 0};
+    float scale[3] = {2.0, 0.5, 1.0};
+    // convert rotation to quaternion
+    float rot[4];
+    axisAngleToQuat(axis, currentFrame*5, rot);
+
+	  glUniform3fv(translationLoc, 1, trans);
+	  glUniform4fv(rotationLoc, 1, rot);
+	  glUniform3fv(scaleLoc, 1, scale);
 		processInput(window);
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		//glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// bind texture

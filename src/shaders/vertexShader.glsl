@@ -11,12 +11,22 @@ out vec3 fragPos;
 
 uniform mat4 projection;
 uniform mat4 view;
-uniform mat4 model;
+uniform vec3 translation;
+uniform vec4 rotation;
+uniform vec3 scale;
 
 void main(){
-	gl_Position = projection * view * model * vec4(aPos, 1.0);
+  vec3 model = aPos;
+  //model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
+  model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
+  model = translation + model;
+  // rotate by quaternion
+  //model = scale * model;
+	gl_Position = projection * view * vec4(model, 1);
 	outputColor = aColor;
-  fragPos = vec3(model * vec4(aPos, 1.0));
-  vertexNormal = mat3(transpose(inverse(model))) * aVertexNormal;
+  fragPos = model.xyz;
+
+  vertexNormal = aVertexNormal.xyz + 2.0*cross(cross(aVertexNormal.xyz, rotation.xyz) + rotation.w*aVertexNormal.xyz, rotation.xyz);
+  vertexNormal = normalize(vertexNormal);
 	texCoord = vec2(aTexCoord.x, aTexCoord.y);
 }
