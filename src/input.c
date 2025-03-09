@@ -159,6 +159,9 @@ void pollSpacemouse(Spacemouse* spacemouse){
   spacemouse->rx = spacemouse->tmp_rx;
   spacemouse->ry = spacemouse->tmp_ry;
   spacemouse->rz = spacemouse->tmp_rz;
+
+  spacemouse->btn_0 = spacemouse->tmp_btn_0;
+  spacemouse->btn_1 = spacemouse->tmp_btn_1;
   // release lock
   pthread_rwlock_unlock(&spacemouse->lock);
 }
