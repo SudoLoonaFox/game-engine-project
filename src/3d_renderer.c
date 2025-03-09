@@ -15,6 +15,8 @@
 
 #include <math.h>
 
+#include "input.h"
+
 // Not in use currently
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -421,9 +423,18 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 }  
 
 static void processInput(GLFWwindow *window){
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
-        glfwSetWindowShouldClose(window, true);
-	}
+  if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
+    glfwSetWindowShouldClose(window, true);
+  }
+  /*
+  const float cameraSpeed = 0.05f; // adjust accordingly
+  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){
+
+  }
+  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+  */
 }
 
 int logShaderCompileErrors(GLuint shader){
@@ -610,17 +621,21 @@ int main(){
 	glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
 	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
+  Spacemouse* spacemouse = initSpacemouse();
+
 	while(!glfwWindowShouldClose(window)){
 		// calculate delta time
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
+    pollSpacemouse(spacemouse);
+
 	  float modelMat[16];
 	  float trans[] = {3.0, 0.0, -10.0};
     //float axis[3] = {0, 1, 0};
     float axis[3] = {0.707107, 0.707107, 0};
-    float scale[3] = {2.0, 0.5, 1.0};
+    float scale[3] = {1.0, 1.0, 1.0};
     // convert rotation to quaternion
     float rot[4];
     axisAngleToQuat(axis, currentFrame*5, rot);
