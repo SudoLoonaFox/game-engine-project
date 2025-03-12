@@ -111,6 +111,9 @@ void* spacemouseThreadFunc(void* arg){
       }
 
       if(e.type == EV_REL){
+        if(e.value < 30 && e.value > -30){
+          e.value = 0;
+        }
         switch(e.code){
   				case REL_X:
 						spacemouse->tmp_x = e.value;
@@ -144,6 +147,14 @@ Spacemouse* initSpacemouse(){
   pthread_rwlock_init(&spacemouse->lock, NULL);
 	spacemouse->fd = open ("/dev/input/event6", O_RDONLY);
   pthread_create(&spacemouse->thread, NULL, spacemouseThreadFunc, spacemouse);
+  spacemouse->tmp_x = 0;
+  spacemouse->tmp_y = 0;
+  spacemouse->tmp_z = 0;
+  spacemouse->tmp_rx = 0;
+  spacemouse->tmp_ry = 0;
+  spacemouse->tmp_rz = 0;
+  spacemouse->tmp_btn_0 = 0;
+  spacemouse->tmp_btn_1 = 0;
   return spacemouse;
 }
 

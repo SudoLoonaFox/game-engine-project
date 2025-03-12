@@ -75,6 +75,12 @@ typedef union{
 }Quaternion;
 
 typedef struct{
+  float r[3];
+  float u[3];
+  float d[3];
+}LookAt;
+
+typedef struct{
 	unsigned int id;
 	char name[30];
 	char meshPath[30];
@@ -97,15 +103,8 @@ typedef struct{
 	float fov;
   Positon pos;
   Quaternion rot;
+  LookAt lookAt;
 }Camera;
-
-void axisAngleToQuat(float axis[3], float theta, float dest[4]){
-  float s = sin(theta/2);
-  dest[0] = axis[0] * s;
-  dest[1] = axis[1] * s;
-  dest[2] = axis[2] * s;
-  dest[3] = cos(theta/2);
-}
 
 // TODO  decide if xyz, rgb, etc should be a vec type
 // float xyz and access by vertex.xyz[0] or vertex.x
@@ -134,7 +133,6 @@ typedef struct {
 	float v;
 }Vertex;
 
-
 typedef struct { // vertex indices
 	unsigned int v1;
 	unsigned int v2;
@@ -142,9 +140,36 @@ typedef struct { // vertex indices
 }Face;
 #pragma pack(pop)
 
-// TODO calculate vertex normals
-// make vertex independent?
-// TODO make vector library
+// TODO create lookat init for other stuff
+
+Camera* initCamera(char* name, float fov){
+  Camera* camera = malloc(sizeof(Camera));
+  // checkstrlen
+  strcpy(camera->name, name);
+  camera->fov = fov;
+
+  camera->lookAt.d[0] = 0;
+  camera->lookAt.d[1] = 0;
+  camera->lookAt.d[2] = 1;
+
+  camera->lookAt.u[0] = 0;
+  camera->lookAt.u[1] = 1;
+  camera->lookAt.u[2] = 0;
+
+  camera->lookAt.r[0] = 1;
+  camera->lookAt.r[1] = 0;
+  camera->lookAt.r[2] = 0;
+
+  return camera;
+}
+
+void axisAngleToQuat(float axis[3], float theta, float dest[4]){
+  float s = sin(theta/2);
+  dest[0] = axis[0] * s;
+  dest[1] = axis[1] * s;
+  dest[2] = axis[2] * s;
+  dest[3] = cos(theta/2);
+}
 
 void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
   // for each vertex find adjacent faces and calculate their normals
@@ -547,10 +572,12 @@ int main(){
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
+  /*
 	Camera camera = {
 		.name = "Fox Cam",
 		.fov = 0.7f // around the fov for a 50mm lens in radians
 	};
+  */
 
 	Model model = {
 		.meshPath = "src/models/teapot.obj"
@@ -621,6 +648,10 @@ int main(){
 	glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
 	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
+  Camera* camera = initCamera("Fox Cam", 0.780f);
+  camera->pos.x = 0;
+  camera->pos.y = 0;
+  camera->pos.z = 30;
   Spacemouse* spacemouse = initSpacemouse();
 
 	while(!glfwWindowShouldClose(window)){
@@ -629,16 +660,54 @@ int main(){
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
+    // TODO convert camera view to quaternion plus position?
+    // move camera
     pollSpacemouse(spacemouse);
+    float cameraSpeed = 50;
+
+    
+    camera->pos.x = camera->pos.x + (spacemouse->x / 350.0) * deltaTime * cameraSpeed;
+    camera->pos.y = camera->pos.y - (spacemouse->z / 350.0) * deltaTime * cameraSpeed;
+    camera->pos.z = camera->pos.z + (spacemouse->y / 350.0) * deltaTime * cameraSpeed;
+    
+    
+
+    viewMat[0] = camera->lookAt.r[0];
+    viewMat[1] = camera->lookAt.r[1];
+    viewMat[2] = camera->lookAt.r[2];
+    viewMat[3] = 0;
+    viewMat[4] = camera->lookAt.u[0];
+    viewMat[5] = camera->lookAt.u[1];
+    viewMat[6] = camera->lookAt.u[2];
+    viewMat[7] = 0;
+    viewMat[8] = camera->lookAt.d[0];
+    viewMat[9] = camera->lookAt.d[1];
+    viewMat[10] = camera->lookAt.d[2];
+    viewMat[11] = 0;
+    viewMat[12] = 0;
+    viewMat[13] = 0;
+    viewMat[14] = 0;
+    viewMat[15] = 1;
+
+    float p[3];
+    p[0] = camera->pos.pos[0] * -1.0;
+    p[1] = camera->pos.pos[1] * -1.0;
+    p[2] = camera->pos.pos[2] * -1.0;
+    glm_translate((float (*)[4])viewMat, p);
+    
+
+	  glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
 	  float modelMat[16];
 	  float trans[] = {3.0, 0.0, -10.0};
-    //float axis[3] = {0, 1, 0};
-    float axis[3] = {0.707107, 0.707107, 0};
+	  //float trans[] = {5.0, 0.0, 0.0};
+    float axis[3] = {0, 1, 0};
+    //float axis[3] = {0.707107, 0.707107, 0};
     float scale[3] = {1.0, 1.0, 1.0};
     // convert rotation to quaternion
     float rot[4];
     axisAngleToQuat(axis, currentFrame*5, rot);
+
 
 	  glUniform3fv(translationLoc, 1, trans);
 	  glUniform4fv(rotationLoc, 1, rot);
@@ -647,7 +716,7 @@ int main(){
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		//glClear(GL_COLOR_BUFFER_BIT);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// bind texture
