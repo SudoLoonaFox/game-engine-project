@@ -440,6 +440,9 @@ void loadModelObj(Model* model){
   calcVertexNormals(vertices, verticesLen, indices, indicesLen);
 	dataToBuffers(model, vertices, verticesLen, indices);
 	// TODO all that freeing stuff
+  free(vertices);
+  free(textureCoordinates);
+  free(indices);
 	fclose(file);
 }
 
