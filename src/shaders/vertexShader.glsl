@@ -18,7 +18,6 @@ uniform vec3 scale;
 void main(){
   vec3 model = aPos;
   model = scale * model;
-  //model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
   model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
   model = translation + model;
   // rotate by quaternion

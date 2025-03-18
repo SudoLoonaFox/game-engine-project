@@ -140,7 +140,31 @@ typedef struct { // vertex indices
 }Face;
 #pragma pack(pop)
 
-// TODO create lookat init for other stuff
+/*
+void eulerToQuaternion(float v[3], float q[4]){
+  float cx = cos(v[0]/2);
+  float sx = sin(v[0]/2);
+  float cy = cos(v[1]/2);
+  float sy = sin(v[1]/2);
+  float cz = cos(v[2]/2);
+  float sz = sin(v[2]/2);
+  q[0] = sx*cy*cz - cx*sy*sz;
+  q[1] = cx*sy*cz + sx*cy*sz;
+  q[2] = cx*cy*sz - sx*sy*cz;
+  q[3] = cx*cy*cz + sx*sy*sz;
+}
+*/
+void rotateVec3(float v[3], float q[4]){
+//  model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
+  float tmp[3];
+  float tmp2[3];
+  glm_vec3_cross(v, q, tmp);
+  glm_vec3_scale(v, q[3], tmp2);
+  glm_vec3_add(tmp, tmp2, tmp);
+  glm_vec3_cross(tmp, q, tmp);
+  glm_vec3_scale(tmp, 2, tmp);
+  glm_vec3_add(v, tmp, v);
+}
 
 Camera* initCamera(char* name, float fov){
   Camera* camera = malloc(sizeof(Camera));
@@ -164,11 +188,11 @@ Camera* initCamera(char* name, float fov){
 }
 
 void axisAngleToQuat(float axis[3], float theta, float dest[4]){
-  float s = sin(theta/2);
+  float s = sin(theta/2.0);
   dest[0] = axis[0] * s;
   dest[1] = axis[1] * s;
   dest[2] = axis[2] * s;
-  dest[3] = cos(theta/2);
+  dest[3] = cos(theta/2.0);
 }
 
 void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
@@ -666,14 +690,54 @@ int main(){
     // TODO convert camera view to quaternion plus position?
     // move camera
     pollSpacemouse(spacemouse);
-    float cameraSpeed = 50;
+    float cameraSpeed = 0.1;
+    float cameraRotationSpeed = 100;
+
+    //rotated v = v.xyz + 2*cross(cross(v.xyz, quaternion.xyz) + quaternion.w*model.xyz, quaternion.xyz);
 
     
-    camera->pos.x = camera->pos.x + (spacemouse->x / 350.0) * deltaTime * cameraSpeed;
-    camera->pos.y = camera->pos.y - (spacemouse->z / 350.0) * deltaTime * cameraSpeed;
-    camera->pos.z = camera->pos.z + (spacemouse->y / 350.0) * deltaTime * cameraSpeed;
-    
-    
+    float rot[4];
+    // pitch(3.14159/180.0)*
+    //axisAngleToQuat(rot, (3.14159/180.0)*(spacemouse->rx / 350.0)*deltaTime*cameraRotationSpeed, rot);
+    // pitch
+
+    glm_vec3_normalize(camera->lookAt.d);
+    glm_vec3_normalize(camera->lookAt.u);
+    glm_vec3_normalize(camera->lookAt.r);
+    float tmp[3];
+    tmp[0] = 1;
+    tmp[1] = 0;
+    tmp[2] = 0;
+    axisAngleToQuat(tmp, (3.14159/180.0)*(spacemouse->rx / 350.0)*deltaTime*cameraRotationSpeed, rot);
+    rotateVec3(camera->lookAt.r, rot);
+    rotateVec3(camera->lookAt.d, rot);
+    rotateVec3(camera->lookAt.u, rot);
+
+    tmp[0] = 0;
+    tmp[1] = 0;
+    tmp[2] = 1;
+    // roll
+    axisAngleToQuat(tmp, (3.14159/180.0)*(spacemouse->ry / 350.0)*deltaTime*cameraRotationSpeed, rot);
+    rotateVec3(camera->lookAt.d, rot);
+    rotateVec3(camera->lookAt.r, rot);
+    rotateVec3(camera->lookAt.u, rot);
+
+    tmp[0] = 0;
+    tmp[1] = 1;
+    tmp[2] = 0;
+    // yaw
+    axisAngleToQuat(tmp, -(3.14159/180.0)*(spacemouse->rz / 350.0)*deltaTime*cameraRotationSpeed, rot);
+    rotateVec3(camera->lookAt.u, rot);
+    rotateVec3(camera->lookAt.r, rot);
+    rotateVec3(camera->lookAt.d, rot);
+
+    float s[3];
+    s[0] = spacemouse->x;
+    s[1] = -1.0*spacemouse->z;
+    s[2] = spacemouse->y;
+    camera->pos.x += glm_dot(camera->lookAt.r, s) * deltaTime * cameraSpeed;
+    camera->pos.y += glm_dot(camera->lookAt.u, s) * deltaTime * cameraSpeed;
+    camera->pos.z += glm_dot(camera->lookAt.d, s) * deltaTime * cameraSpeed;
 
     viewMat[0] = camera->lookAt.r[0];
     viewMat[1] = camera->lookAt.r[1];
@@ -705,11 +769,12 @@ int main(){
 	  float trans[] = {3.0, 0.0, -10.0};
 	  //float trans[] = {5.0, 0.0, 0.0};
     float axis[3] = {0, 1, 0};
+    glm_normalize(axis);
     //float axis[3] = {0.707107, 0.707107, 0};
     float scale[3] = {1.0, 1.0, 1.0};
     // convert rotation to quaternion
-    float rot[4];
     axisAngleToQuat(axis, currentFrame*5, rot);
+    //printf("%f, %f, %f, %f\n", rot[0], rot[1], rot[2], rot[3]);
 
 
 	  glUniform3fv(translationLoc, 1, trans);
@@ -738,6 +803,7 @@ int main(){
 		// draw buffer swap
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+    printf("%f\n", 1.0/deltaTime);
 	}
 	// deallocate vao,vbo,ebo
 	glfwTerminate();
