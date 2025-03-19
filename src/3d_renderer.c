@@ -348,7 +348,7 @@ void getModelFromIndex(int id, Model* model);
 // TODO Finish loading code
 // TODO Change to generic type stuff 
 void loadModelObj(Model* model){
-	const int DEFAULT_SIZE = 50000000;
+	const int DEFAULT_SIZE = 500000;
 	// check if meshpath is set
 	/*
 	if(model->meshPath==NULL){
@@ -364,11 +364,9 @@ void loadModelObj(Model* model){
 	unsigned int textureCoordinatesLen = 0;
 	unsigned int vertexNormalsLen = 0;
 	unsigned int faceIndex = 0;
-  unsigned int normalsIndicesPairLen = 0;
 	Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
 	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
-	float* vertexNormals = malloc(sizeof(float)*3*DEFAULT_SIZE);
-  unsigned int* normalsIndicesPair = malloc(sizeof(float)*2*DEFAULT_SIZE);
+	//Normal* vertexNormals = malloc(sizeof(VertexNormal)*DEFAULT_SIZE);
 	//Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
 	unsigned int* indices = malloc(sizeof(unsigned int)*DEFAULT_SIZE*3);
 	// TODO Remake to work line by line and can scan multiple ways
@@ -387,11 +385,6 @@ void loadModelObj(Model* model){
 			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
 			//printf("Texture\n");
 			textureCoordinatesLen++;
-		}
-		if(line[0] == 'v' && line[1] == 'n'){
-			sscanf(line, "vn %f %f %f\n", &vertexNormals[3*vertexNormalsLen], &vertexNormals[3*vertexNormalsLen+1], &vertexNormals[3*vertexNormalsLen+2]);
-			vertexNormalsLen++;
-			//printf("Vertex Added NO %i\n", verticesLen);
 		}
 		/*
 		else if(strcmp(startSymbol, "vn") == 0){
@@ -421,24 +414,10 @@ void loadModelObj(Model* model){
       // TODO Finish this
       int b = 0;
       int* f = &b;
-      int vn0;
-      int vn1;
-      int vn2;
-      if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], f, &vn0,
-                   &indices[faceIndex*3+1], f, &vn1,
-                   &indices[faceIndex*3+2], f, &vn2)){
+      if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], f, f, &indices[faceIndex*3+1], f, f, &indices[faceIndex*3+2], f, f)){
 				indices[faceIndex*3]--;
 				indices[faceIndex*3+1]--;
 				indices[faceIndex*3+2]--;
-        normalsIndicesPair[2*normalsIndicesPairLen] = vn0;
-        normalsIndicesPair[2*normalsIndicesPairLen+1] = indices[faceIndex*3];
-        normalsIndicesPairLen++;
-        normalsIndicesPair[2*normalsIndicesPairLen] = vn1;
-        normalsIndicesPair[2*normalsIndicesPairLen+1] = indices[faceIndex*3+1];
-        normalsIndicesPairLen++;
-        normalsIndicesPair[2*normalsIndicesPairLen] = vn2;
-        normalsIndicesPair[2*normalsIndicesPairLen+1] = indices[faceIndex*3+2];
-        normalsIndicesPairLen++;
 				faceIndex++;
 				//printf("f d d d");
 				continue;
@@ -475,16 +454,6 @@ void loadModelObj(Model* model){
 	}
   unsigned int indicesLen = faceIndex*3;
 	model->indicesLen = indicesLen; 
-  if(normalsIndicesPairLen>0){
-    for(unsigned int i = 0; i < normalsIndicesPairLen; i++){
-      vertices[normalsIndicesPair[2*i+1]].vn[0] = vertexNormals[3*normalsIndicesPair[2*i]+0];
-      vertices[normalsIndicesPair[2*i+1]].vn[1] = vertexNormals[3*normalsIndicesPair[2*i]+1];
-      vertices[normalsIndicesPair[2*i+1]].vn[2] = vertexNormals[3*normalsIndicesPair[2*i]+2];
-    }
-  }
-  else{
-    calcVertexNormals(vertices, verticesLen, indices, indicesLen);
-  }
 
   /*
 	// TODO calculate vertex normals
@@ -492,12 +461,12 @@ void loadModelObj(Model* model){
 	dcel = dataToHalfEdge(vertices, verticesLen, indices, model->indicesNo);
   free(dcel);
   */
+  calcVertexNormals(vertices, verticesLen, indices, indicesLen);
 	dataToBuffers(model, vertices, verticesLen, indices);
 	// TODO all that freeing stuff
   free(vertices);
   free(textureCoordinates);
   free(indices);
-  free(vertexNormals);
 	fclose(file);
 }
 
@@ -638,7 +607,7 @@ int main(){
   */
 
 	Model model = {
-		.meshPath = "src/models/chess.obj"
+		.meshPath = "src/models/teapot.obj"
 	};
   
 // will set with id system later
