@@ -9,6 +9,9 @@
 #include <pthread.h>
 
 #include <string.h>
+// TODO make a device picker
+// TODO find a better way to initialize structs
+// TODO implement proper terminations
 
 /*
            ____________________________              __
@@ -36,7 +39,8 @@
 */
 
 typedef struct{
-  int lock;
+  pthread_t thread;
+  pthread_rwlock_t lock;
   int fd;
   char south;
   char east;
@@ -59,9 +63,33 @@ typedef struct{
   int abs_y;
   int abs_rx;
   int abs_ry;
+  int abs_hat0x;
+  int abs_hat0y;
+  char tmp_south;
+  char tmp_east;
+  char tmp_c;
+  char tmp_north;
+  char tmp_west;
+  char tmp_z;
+  char tmp_tl;
+  char tmp_tr;
+  char tmp_tl2;
+  char tmp_tr2;
+  char tmp_select;
+  char tmp_start;
+  char tmp_mode;
+  char tmp_thumbl;
+  char tmp_thumbr;
+  char tmp_hat0x;
+  char tmp_hat0y;
+  int tmp_abs_x;
+  int tmp_abs_y;
+  int tmp_abs_rx;
+  int tmp_abs_ry;
+  int tmp_abs_hat0x;
+  int tmp_abs_hat0y;
 }Gamepad;
 
-// write to the temp and write the temp to the main when polled
 typedef struct{
   pthread_t thread;
   pthread_rwlock_t lock;
@@ -87,6 +115,157 @@ typedef struct{
 // range appears to be 350 for xyz and for rot
 // multiply this by the delta time to get the relative
 //
+void* gamepadThreadFunc(void* arg){
+  // start the thread
+  Gamepad* gamepad = (Gamepad*)arg;
+	struct input_event e;
+	while(1){
+		if(read(gamepad->fd, &e, sizeof(struct input_event))>0){
+		//printf("type: %x, code: %x, value: %x\n", e.type, e.code, e.value);
+      // TODO convert input into state
+      // get write lock
+      // TODO setup input buffering?
+      pthread_rwlock_wrlock(&gamepad->lock);
+      if(e.type == EV_KEY){
+        //TODO add dpad
+        switch(e.code){
+					case BTN_SOUTH:
+						gamepad->tmp_south = e.value;
+						break;
+					case BTN_EAST:
+						gamepad->tmp_east = e.value;
+						break;
+					case BTN_C:
+						gamepad->tmp_c = e.value;
+						break;
+					case BTN_NORTH:
+						gamepad->tmp_north = e.value;
+						break;
+					case BTN_WEST:
+						gamepad->tmp_west = e.value;
+						break;
+					case BTN_Z:
+						gamepad->tmp_z = e.value;
+						break;
+					case BTN_TL:
+						gamepad->tmp_tl = e.value;
+						break;
+					case BTN_TR:
+						gamepad->tmp_tr = e.value;
+						break;
+					case BTN_TL2:
+						gamepad->tmp_tl2 = e.value;
+						break;
+					case BTN_TR2:
+						gamepad->tmp_tr2 = e.value;
+						break;
+					case BTN_SELECT:
+						gamepad->tmp_select = e.value;
+						break;
+					case BTN_START:
+						gamepad->tmp_start = e.value;
+						break;
+					case BTN_MODE:
+						gamepad->tmp_mode = e.value;
+						break;
+					case BTN_THUMBL:
+						gamepad->tmp_thumbl = e.value;
+						break;
+					case BTN_THUMBR:
+						gamepad->tmp_thumbr = e.value;
+						break;
+        }
+      }
+      if(e.type == EV_ABS){
+        //TODO add dpad
+        switch(e.code){
+					case ABS_X:
+						gamepad->tmp_abs_x = e.value;
+						break;
+					case ABS_Y:
+						gamepad->tmp_abs_y = e.value;
+						break;
+					case ABS_RX:
+						gamepad->tmp_abs_rx = e.value;
+						break;
+					case ABS_RY:
+						gamepad->tmp_abs_ry = e.value;
+						break;
+					case ABS_HAT0X:
+						gamepad->tmp_abs_hat0x = e.value;
+						break;
+					case ABS_HAT0Y:
+						gamepad->tmp_abs_hat0y = e.value;
+						break;
+        }
+      }
+      pthread_rwlock_unlock(&gamepad->lock);
+		}
+	}
+}
+Gamepad* initgamepad(){
+  // TODO make a selector code
+  Gamepad* gamepad = malloc(sizeof(Gamepad));
+  pthread_rwlock_init(&gamepad->lock, NULL);
+	gamepad->fd = open ("/dev/input/event14", O_RDONLY);
+  pthread_create(&gamepad->thread, NULL, gamepadThreadFunc, gamepad);
+	gamepad->tmp_south = 0;
+	gamepad->tmp_east = 0;
+	gamepad->tmp_c = 0;
+	gamepad->tmp_north = 0;
+	gamepad->tmp_west = 0;
+	gamepad->tmp_z = 0;
+	gamepad->tmp_tl = 0;
+	gamepad->tmp_tr = 0;
+	gamepad->tmp_tl2 = 0;
+	gamepad->tmp_tr2 = 0;
+	gamepad->tmp_select = 0;
+	gamepad->tmp_start = 0;
+	gamepad->tmp_mode = 0;
+	gamepad->tmp_thumbl = 0;
+	gamepad->tmp_thumbr = 0;
+	gamepad->tmp_hat0x = 0;
+	gamepad->tmp_hat0y = 0;
+	gamepad->tmp_abs_x = 0;
+	gamepad->tmp_abs_y = 0;
+	gamepad->tmp_abs_rx = 0;
+	gamepad->tmp_abs_ry = 0;
+	gamepad->tmp_abs_hat0x = 0;
+	gamepad->tmp_abs_hat0y = 0;
+  return gamepad;
+}
+
+void pollGamepad(Gamepad* gamepad){
+  if(gamepad == NULL){
+    return;
+  }
+  // get lock
+  pthread_rwlock_rdlock(&gamepad->lock);
+  gamepad->south = gamepad->tmp_south;
+  gamepad->east = gamepad->tmp_east;
+  gamepad->c = gamepad->tmp_c;
+  gamepad->north = gamepad->tmp_north;
+  gamepad->west = gamepad->tmp_west;
+  gamepad->z = gamepad->tmp_z;
+  gamepad->tl = gamepad->tmp_tl;
+  gamepad->tr = gamepad->tmp_tr;
+  gamepad->tl2 = gamepad->tmp_tl2;
+  gamepad->tr2 = gamepad->tmp_tr2;
+  gamepad->select = gamepad->tmp_select;
+  gamepad->start = gamepad->tmp_start;
+  gamepad->mode = gamepad->tmp_mode;
+  gamepad->thumbl = gamepad->tmp_thumbl;
+  gamepad->thumbr = gamepad->tmp_thumbr;
+  gamepad->hat0x = gamepad->tmp_hat0x;
+  gamepad->hat0y = gamepad->tmp_hat0y;
+  gamepad->abs_x = gamepad->tmp_abs_x;
+  gamepad->abs_y = gamepad->tmp_abs_y;
+  gamepad->abs_rx = gamepad->tmp_abs_rx;
+  gamepad->abs_ry = gamepad->tmp_abs_ry;
+  gamepad->abs_hat0x = gamepad->tmp_abs_hat0x;
+  gamepad->abs_hat0y = gamepad->tmp_abs_hat0y;
+  pthread_rwlock_unlock(&gamepad->lock);
+}
 
 void* spacemouseThreadFunc(void* arg){
   // start the thread
@@ -111,7 +290,7 @@ void* spacemouseThreadFunc(void* arg){
       }
 
       if(e.type == EV_REL){
-        if(e.value < 30 && e.value > -30){
+        if(e.value < 20 && e.value > -20){
           e.value = 0;
         }
         switch(e.code){
@@ -188,26 +367,6 @@ void termSpacemouse(Spacemouse** spacemouse){
   // kill thread
 }
 
-void initGamepad(Gamepad* gamepad){
-  // open the file
-  // remove lock if exists
-  // initialize lock
-  
-
-}
-
-void pollGamepad(Gamepad* gamepad){
-  // read in data
-  // get lock
-  // update struct
-  // release lock
-
-}
-
-void termGamepad(Gamepad* gamepad){
-  // remove lock
-  // close file descriptor
-}
 /*
 int main(){
   /*

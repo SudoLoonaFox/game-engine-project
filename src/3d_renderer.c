@@ -129,8 +129,13 @@ typedef struct {
       float nz;
     };
   };
-	float u;
-	float v;
+  union{
+    float vt[2];
+  struct{
+	  float u;
+	  float v;
+    };
+  };
 }Vertex;
 
 typedef struct { // vertex indices
@@ -281,10 +286,8 @@ Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, u
   glBindVertexArray(model->VAO);
 
 
-  printf("Test1\n\n");
   glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
-  printf("Test2\n");
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*model->indicesLen, indices, GL_STATIC_DRAW);
@@ -348,7 +351,7 @@ void getModelFromIndex(int id, Model* model);
 // TODO Finish loading code
 // TODO Change to generic type stuff 
 void loadModelObj(Model* model){
-	const int DEFAULT_SIZE = 500000;
+	const int DEFAULT_SIZE = 5000000;
 	// check if meshpath is set
 	/*
 	if(model->meshPath==NULL){
@@ -365,8 +368,9 @@ void loadModelObj(Model* model){
 	unsigned int vertexNormalsLen = 0;
 	unsigned int faceIndex = 0;
 	Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
+  // can do this without malloc
 	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
-	//Normal* vertexNormals = malloc(sizeof(VertexNormal)*DEFAULT_SIZE);
+	float* vertexNormals = malloc(sizeof(float)*2*DEFAULT_SIZE);
 	//Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
 	unsigned int* indices = malloc(sizeof(unsigned int)*DEFAULT_SIZE*3);
 	// TODO Remake to work line by line and can scan multiple ways
@@ -383,15 +387,12 @@ void loadModelObj(Model* model){
 		}
 		else if(line[0] == 'v' && line[1] == 't'){
 			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
-			//printf("Texture\n");
 			textureCoordinatesLen++;
 		}
-		/*
-		else if(strcmp(startSymbol, "vn") == 0){
-			sscanf(line, "vn %f %f %f\n", vertexNormal[vertexNormalLen].x, vertexNormal[vertexNormalLen].y, vertexNormal[vertexNormalLen].z);
-			vertexNormalLen++;
+		else if(line[0] == 'v' && line[1] == 'n'){
+			sscanf(line, "vn %f %f %f", &vertexNormals[vertexNormalsLen*3], &vertexNormals[vertexNormalsLen*3+1], &vertexNormals[vertexNormalsLen*3+2]);
+			vertexNormalsLen++;
 		}
-		*/
 		else if(line[0] == 'f' && line[1] == ' '){
 			// possible formats are:
 			// f v v v
@@ -414,10 +415,31 @@ void loadModelObj(Model* model){
       // TODO Finish this
       int b = 0;
       int* f = &b;
-      if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], f, f, &indices[faceIndex*3+1], f, f, &indices[faceIndex*3+2], f, f)){
+      unsigned int vt0;
+      unsigned int vt1;
+      unsigned int vt2;
+      unsigned int vn0;
+      unsigned int vn1;
+      unsigned int vn2;
+      if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], &vt0, &vn0, &indices[faceIndex*3+1], &vt1, &vn1, &indices[faceIndex*3+2], &vt2, &vn2)){
 				indices[faceIndex*3]--;
 				indices[faceIndex*3+1]--;
 				indices[faceIndex*3+2]--;
+
+        vn0--;
+        vn1--;
+        vn2--;
+        vt0--;
+        vt1--;
+        vt2--;
+        memcpy(&vertices[indices[faceIndex*3+0]].vn, &vertexNormals[3*vn0], sizeof(float)*3);
+        memcpy(&vertices[indices[faceIndex*3+1]].vn, &vertexNormals[3*vn1], sizeof(float)*3);
+        memcpy(&vertices[indices[faceIndex*3+2]].vn, &vertexNormals[3*vn2], sizeof(float)*3);
+
+        memcpy(&vertices[indices[faceIndex*3+0]].vt, &textureCoordinates[2*vt0], sizeof(float)*2);
+        memcpy(&vertices[indices[faceIndex*3+1]].vt, &textureCoordinates[2*vt1], sizeof(float)*2);
+        memcpy(&vertices[indices[faceIndex*3+2]].vt, &textureCoordinates[2*vt2], sizeof(float)*2);
+
 				faceIndex++;
 				//printf("f d d d");
 				continue;
@@ -461,11 +483,14 @@ void loadModelObj(Model* model){
 	dcel = dataToHalfEdge(vertices, verticesLen, indices, model->indicesNo);
   free(dcel);
   */
-  calcVertexNormals(vertices, verticesLen, indices, indicesLen);
+  if(!vertexNormalsLen){
+    calcVertexNormals(vertices, verticesLen, indices, indicesLen);
+  }
 	dataToBuffers(model, vertices, verticesLen, indices);
 	// TODO all that freeing stuff
   free(vertices);
   free(textureCoordinates);
+  free(vertexNormals);
   free(indices);
 	fclose(file);
 }
@@ -607,7 +632,7 @@ int main(){
   */
 
 	Model model = {
-		.meshPath = "src/models/teapot.obj"
+		.meshPath = "src/models/lantern.obj"
 	};
   
 // will set with id system later
@@ -616,10 +641,12 @@ int main(){
 
 	// Creating a texture with stb image
 	int width, height, nrChannels;
-	BMPImage imageData;
-	loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
-	// stbi_set_flip_vertically_on_load(true);
+	//BMPImage imageData;
+	//loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
+	stbi_set_flip_vertically_on_load(true);
 	//unsigned char *imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0); 
+	unsigned char *imageData = stbi_load("src/textures/Lantern_baseColor.png", &width, &height, &nrChannels, 0); 
+  assert(imageData!=NULL);
 	glGenTextures(1, &model.texture);
 	glBindTexture(GL_TEXTURE_2D, model.texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -627,10 +654,11 @@ int main(){
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageData.width, imageData.height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData.data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageData);
+//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageData.width, imageData.height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData.data);
 	glGenerateMipmap(GL_TEXTURE_2D);
-	free(imageData.data);
+	//free(imageData.data);
+  free(imageData);
 
 	 //When multiplying matrices the right-most matrix is first multiplied with the vector so you should read the multiplications from right to left. It is advised to first do scaling operations, then rotations and lastly translations when combining matrices
 	//If transpose is GL_FALSE, each matrix is assumed to be supplied in column major order. If transpose is GL_TRUE, each matrix is assumed to be supplied in row major order
@@ -768,7 +796,7 @@ int main(){
 	  float modelMat[16];
 	  float trans[] = {3.0, 0.0, -10.0};
 	  //float trans[] = {5.0, 0.0, 0.0};
-    float axis[3] = {0, 1, 0};
+    float axis[3] = {0, 0, 0};
     glm_normalize(axis);
     //float axis[3] = {0.707107, 0.707107, 0};
     float scale[3] = {1.0, 1.0, 1.0};
@@ -789,11 +817,7 @@ int main(){
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// bind texture
 		//TODO make initalizer nullify fields
-		/*
-		if(model.texture!=NULL){
-			//glBindTexture(GL_TEXTURE_2D, model.texture);
-		}
-		*/
+		glBindTexture(GL_TEXTURE_2D, model.texture);
 		// render container
 		glUseProgram(shaderProgram);
     glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized

@@ -44,15 +44,18 @@ void main(){
 	vec3 result = ambient + diffuse + specular;
 
 */
-//	FragColor = texture(texture1, texCoord);
 	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
 	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
   // basic hue shift
 	vec4 baseColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
   //FragColor = baseColor * vec4(vec3(diff), 1.0);
   //FragColor = normalize(baseColor + vec4(0.8*diff, 0.0, -0.8*diff, 1.0f));
- // FragColor = vec4(vertexNormal, 1.0);
-	FragColor = vec4(vec3(1.0f, 0.5f, 0.2f)*diff, 1.0f);
+	//FragColor = vec4(vec3(1.0f, 0.5f, 0.2f)*diff, 1.0f);
+	FragColor = texture(texture1, texCoord);
+  /*
+	FragColor = vec4(texture(texture1, texCoord).xyz*diff, 1.0f);
+  FragColor = vec4(vertexNormal, 1.0);
+  */
 
 	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
 //	FragColor = vec4(result, 1.0);
