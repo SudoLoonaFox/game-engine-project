@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -Wall -lglfw -lGL -lX11 -lpthread -lXrandr -lXi -ldl -lGLEW -lm
+CFLAGS=-g -Wall -lglfw -lGL -lX11 -lpthread -lXrandr -lXi -ldl -lGLEW -lm -fsanitize=address
 SRC=src
 SRCS=$(wildcard $(SRC)/*.c)
 OBJ=obj
