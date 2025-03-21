@@ -21,7 +21,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-// Specified in models.csv id,name,meshpath,texturepath
 const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
 
 // will have multiple ones for different rendering types
@@ -282,35 +281,7 @@ Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, u
   printf("Finished dataToBuffers\n");
 	return model;
 }
-	
-// TODO modify this to be more useful
-Model* loadModelsIndex(int* length){
-	char* path = "src/models.csv";
-	FILE* file = fopen(path, "r");
-	if(file == NULL){
-		return NULL;
-	}
-	// TODO add reallocation
-	Model* models = malloc(sizeof(Model)*10);
-	char line[128];
-	int modelIndex = 0;
-	while(1){
-		if(fgets(line, 128, file)==NULL){
-			break;
-		}
-		//printf("%s\n", line);
-		if(0==sscanf(line, "%d,%[^,],%[^,],%[^,]", &models[modelIndex].id, models[modelIndex].name, models[modelIndex].meshPath, models[modelIndex].texturePath)){
-			continue;
-		}
-		modelIndex++;
-	}
-	fclose(file);
-	*length = modelIndex;
-	for(int i = 0; i<modelIndex; i++){
-		//printf("id: %d, name: %s, path: %s\n", models[i].id, models[i].name, models[i].meshPath);
-	}
-	return models;
-}
+
 void loadModelObj(Model* model){
 	const int DEFAULT_SIZE = 5000000;
 	FILE* file = fopen(model->meshPath, "r");
