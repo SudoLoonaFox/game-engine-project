@@ -21,14 +21,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-// TODO make functions structure independent where possible
-//
-// TODO add quaternions and controller math
-//
-// TODO Make Camera controls
-//
-// TODO Add delaunay triangulation
-
 // Specified in models.csv id,name,meshpath,texturepath
 const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
 
@@ -39,21 +31,11 @@ const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-// add info to models.csv for default scaling, rot, pos etc
-// entities will have additional information like current pos, scaling, rot, etc in world space as well as movement vectors and the like
 typedef struct{
 	char* data;
 	int width;
 	int height;
 }BMPImage;
-
-//TODO add camera movement smoothing, interpolation, look at target, follow mouse etc
-// Do I add stuff for tracking in the struct like a target?
-// tracking speeds? limits? 
-// Homogeneous transformation matrix?
-// Quaternions?
-// Need to get a homogeneous transformation matrix for the view math but quaternions would be best for storing angles
-// make a position struct that is transform, scale, and rot?
 
 typedef union{
   float pos[3];
@@ -96,8 +78,6 @@ typedef struct{
   float modelMat[16];
 }Model;
 
-// do we attach the camera to an object or object to the camera?
-// do we need a kill cam or stuff like that? changing scene with one active would caues a hanging reference
 typedef struct{
 	char name[20];
 	float fov;
@@ -106,10 +86,8 @@ typedef struct{
   LookAt lookAt;
 }Camera;
 
-// TODO  decide if xyz, rgb, etc should be a vec type
-// float xyz and access by vertex.xyz[0] or vertex.x
 #pragma pack(push, 1)
-typedef struct {
+typedef struct{
   union{
     float pos[3];
     struct{
@@ -138,7 +116,7 @@ typedef struct {
   };
 }Vertex;
 
-typedef struct { // vertex indices
+typedef struct{ // vertex indices
 	unsigned int v1;
 	unsigned int v2;
 	unsigned int v3;
@@ -173,7 +151,6 @@ void rotateVec3(float v[3], float q[4]){
 
 Camera* initCamera(char* name, float fov){
   Camera* camera = malloc(sizeof(Camera));
-  // checkstrlen
   strcpy(camera->name, name);
   camera->fov = fov;
 
@@ -208,18 +185,21 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
   float* faceNormals = malloc(indicesLen/3 * sizeof(float)*3);
   float* faceSurfaceArea = malloc(indicesLen/3 * sizeof(float));
   for(int i = 0; i < indicesLen/3; i++){
-    // face a normal
-    // face abc normal is cross 
-    //    C
-    //   / \
-    //  /   \
-    // /     \
-    //A-------B 
-    //
-    // face normal is bc x ba
-    // bc is c - b
-    // ba is a - b
-    // n is normal
+    /*
+    * 
+    *  face a normal
+    *  face abc normal is cross 
+    *     C
+    *    / \
+    *   /   \
+    *  /     \
+    * A-------B 
+    * 
+    *  face normal is bc x ba
+    *  bc is c - b
+    *  ba is a - b
+    *  n is normal
+    */
 
     float* n = &faceNormals[3*i];
     float ab[3];
@@ -235,20 +215,11 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
     // area of face abc is 0.5*||AB X AC||
     faceSurfaceArea[i] = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
     faceSurfaceArea[i] = sqrtf(faceSurfaceArea[i]) * 0.5;
-    //printf("faceSurfaceArea: %f\n",faceSurfaceArea[i]);
-
-    //glm_vec3_normalize(ab);
-    //glm_vec3_normalize(ac);
     glm_vec3_cross(ab, ac, n);
     glm_vec3_normalize(n);
-    /*
-    n[0] = 0;
-    n[1] = 0;
-    n[2] = 1;
-    */
-    //printf("faceNormal:\t%f\t%f\t%f\n",n[0],n[1],n[2]);
   }
   // for every vertex check all faces for match
+  // TODO optimize this
   for(int v = 0; v < verticesLen; v++){
     float n[3] = {0, 0, 0};
     // check every face for vertex match
@@ -272,11 +243,8 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
   }
   free(faceNormals);
   free(faceSurfaceArea);
-  printf("Finished calcVertexNormals\n");
 }
 
-
-//TODO add texture here? or elsewhere
 Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices){
   printf("Started dataToBuffers\n");
   glGenVertexArrays(1, &model->VAO);
@@ -285,12 +253,12 @@ Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, u
   // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
   glBindVertexArray(model->VAO);
 
-
   glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*model->indicesLen, indices, GL_STATIC_DRAW);
+
 	int stride = sizeof(Vertex);
 	// position
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, stride, (void*)0);
@@ -325,7 +293,7 @@ Model* loadModelsIndex(int* length){
 	if(file == NULL){
 		return NULL;
 	}
-	//TODO add reallocation
+	// TODO add reallocation
 	Model* models = malloc(sizeof(Model)*10);
 	char line[128];
 	int modelIndex = 0;
@@ -346,23 +314,13 @@ Model* loadModelsIndex(int* length){
 	}
 	return models;
 }
-void getModelFromIndex(int id, Model* model);
-
-// TODO Finish loading code
-// TODO Change to generic type stuff 
 void loadModelObj(Model* model){
 	const int DEFAULT_SIZE = 5000000;
-	// check if meshpath is set
-	/*
-	if(model->meshPath==NULL){
-		return NULL;
-	}
-	*/
 	FILE* file = fopen(model->meshPath, "r");
 	if(file == NULL){
 		return;
 	}
-	//TODO Add reallocation
+	// TODO Add reallocation
 	unsigned int verticesLen = 0;
 	unsigned int textureCoordinatesLen = 0;
 	unsigned int vertexNormalsLen = 0;
@@ -371,19 +329,13 @@ void loadModelObj(Model* model){
   // can do this without malloc
 	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
 	float* vertexNormals = malloc(sizeof(float)*2*DEFAULT_SIZE);
-	//Face* faces = malloc(sizeof(Face)*DEFAULT_SIZE);
 	unsigned int* indices = malloc(sizeof(unsigned int)*DEFAULT_SIZE*3);
-	// TODO Remake to work line by line and can scan multiple ways
 	// IMPORTANT: obj indexing starts at 1
-	//char startSymbol[20];
 	char line[128];
 	while(fgets(line, 128, file)){
-		//printf("Line: %s\n", line);
-
 		if(line[0] == 'v' && line[1] == ' '){
 			sscanf(line, "v %f %f %f\n", &vertices[verticesLen].x, &vertices[verticesLen].y, &vertices[verticesLen].z);
 			verticesLen++;
-			//printf("Vertex Added NO %i\n", verticesLen);
 		}
 		else if(line[0] == 'v' && line[1] == 't'){
 			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
@@ -400,38 +352,30 @@ void loadModelObj(Model* model){
 			// f v/vt/vn v/vt/vn v/vt/vn
 			// f v//vn v//vn v//vn
 			if(3 == sscanf(line, "f %d %d %d", &indices[faceIndex*3], &indices[faceIndex*3+1], &indices[faceIndex*3+2])){
-				// obj starts at 1 not 0 index
-				// can I do &indices[faceIndex*3]-- ? or something
 				indices[faceIndex*3]--;
 				indices[faceIndex*3+1]--;
 				indices[faceIndex*3+2]--;
 				faceIndex++;
-				//printf("f d d d");
 				continue;
 			}
-			int vt[3];
-			int vn[3];
-
-      // TODO Finish this
-      int b = 0;
-      int* f = &b;
       unsigned int vt0;
       unsigned int vt1;
       unsigned int vt2;
       unsigned int vn0;
       unsigned int vn1;
       unsigned int vn2;
+
       if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], &vt0, &vn0, &indices[faceIndex*3+1], &vt1, &vn1, &indices[faceIndex*3+2], &vt2, &vn2)){
 				indices[faceIndex*3]--;
 				indices[faceIndex*3+1]--;
 				indices[faceIndex*3+2]--;
-
         vn0--;
         vn1--;
         vn2--;
         vt0--;
         vt1--;
         vt2--;
+
         memcpy(&vertices[indices[faceIndex*3+0]].vn, &vertexNormals[3*vn0], sizeof(float)*3);
         memcpy(&vertices[indices[faceIndex*3+1]].vn, &vertexNormals[3*vn1], sizeof(float)*3);
         memcpy(&vertices[indices[faceIndex*3+2]].vn, &vertexNormals[3*vn2], sizeof(float)*3);
@@ -441,53 +385,19 @@ void loadModelObj(Model* model){
         memcpy(&vertices[indices[faceIndex*3+2]].vt, &textureCoordinates[2*vt2], sizeof(float)*2);
 
 				faceIndex++;
-				//printf("f d d d");
 				continue;
       }
-			//TODO Finish this
-      /*
-			if(9 == sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
-						&indices[faceIndex*3], &vt[0], &vn[0],
-						&indices[faceIndex*3+1], &vt[1], &vn[1],
-						&indices[faceIndex*3+2], &vt[2], &vn[2])){
-				// obj starts at 1 not 0 index
-				// can I do &indices[faceIndex*3]-- ? or something
-				indices[faceIndex*3]--;
-				indices[faceIndex*3+1]--;
-				indices[faceIndex*3+2]--;
-				//TODO add vertex normal stuff
-
-				// set the texture coordinate stored in vertex
-				vertices[indices[faceIndex*3]].u = textureCoordinates[2*vt[0]];
-				vertices[indices[faceIndex*3]].v = textureCoordinates[2*vt[0]+1];
-
-				vertices[indices[faceIndex*3+1]].u = textureCoordinates[2*vt[1]];
-				vertices[indices[faceIndex*3+1]].v = textureCoordinates[2*vt[1]+1];
-
-				vertices[indices[faceIndex*3+2]].u = textureCoordinates[2*vt[2]];
-				vertices[indices[faceIndex*3+2]].v = textureCoordinates[2*vt[2]+1];
-
-				faceIndex++;
-				continue;
-			}
-      */
-				//printf("f d/d/d d/d/d d/d/d");
 		}
 	}
+
   unsigned int indicesLen = faceIndex*3;
 	model->indicesLen = indicesLen; 
 
-  /*
-	// TODO calculate vertex normals
-  DCEL* dcel;
-	dcel = dataToHalfEdge(vertices, verticesLen, indices, model->indicesNo);
-  free(dcel);
-  */
   if(!vertexNormalsLen){
     calcVertexNormals(vertices, verticesLen, indices, indicesLen);
   }
+
 	dataToBuffers(model, vertices, verticesLen, indices);
-	// TODO all that freeing stuff
   free(vertices);
   free(textureCoordinates);
   free(vertexNormals);
@@ -495,7 +405,7 @@ void loadModelObj(Model* model){
 	fclose(file);
 }
 
-static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+static void framebuffer_size_callback(GLFWwindow* window, int width, int height){
     glViewport(0, 0, width, height);
 }  
 
@@ -503,15 +413,6 @@ static void processInput(GLFWwindow *window){
   if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
     glfwSetWindowShouldClose(window, true);
   }
-  /*
-  const float cameraSpeed = 0.05f; // adjust accordingly
-  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){
-
-  }
-  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-  */
 }
 
 int logShaderCompileErrors(GLuint shader){
@@ -526,23 +427,20 @@ int logShaderCompileErrors(GLuint shader){
 }
 
 int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into currently bound texture
-	// main texture related stuff
 	int fd = open(path, O_RDONLY, S_IRUSR);
 	struct stat sb;
+  // TODO change to assert?
 	if(fstat(fd, &sb) == -1){
 		printf("Error loading file\n");
-		// do error stuff
-		// close file descripter
 	}
 	char* data = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 	unsigned int width, height, offset, imageSize;
 	if(data[0] != 'B' || data[1] != 'M'){
-		// not correct file type
+		// incorrect file type
 		printf("Invalid image type\n");
 	}
 	// TODO account for endianness
-	// cause we are reading this bytewise we need to cast the data
-	width = *(int*)&data[0x12]; // is two bytes but should be ok like this?
+	width = *(int*)&data[0x12];
 	height = *(int*)&data[0x16];
 	offset = *(int*)&data[0x0A];
 	imageSize = *(int*)&data[0x22];
@@ -555,9 +453,9 @@ int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into 
 	image->data = colorData;
 	image->width = width;
 	image->height = height;
+
 	munmap(data, sb.st_size);
 	close(fd);
-
 	return 0;
 };
 
@@ -566,23 +464,18 @@ int main(){
 	if(!glfwInit()){
 		return -1;
 	}
+
 	window = glfwCreateWindow(800, 600, "Renderer", NULL, NULL);
 	if(!window){
 		glfwTerminate();
 		return -1;
 	}
+
 	glfwMakeContextCurrent(window);
-
 	glViewport(0, 0, 800, 600);
-
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	glewInit();
 
-	/*
-    GL_STREAM_DRAW: the data is set only once and used by the GPU at most a few times.
-    GL_STATIC_DRAW: the data is set only once and used many times.
-    GL_DYNAMIC_DRAW: the data is changed a lot and used many times.
-	*/
+	glewInit();
 
 	struct stat sb;
 	unsigned int vertexShader;
@@ -598,8 +491,6 @@ int main(){
 	glCompileShader(vertexShader);
 
 	logShaderCompileErrors(vertexShader);
-
-	//TODO add logging
 
 	unsigned int fragmentShader;
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -624,27 +515,16 @@ int main(){
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
 
-  /*
-	Camera camera = {
-		.name = "Fox Cam",
-		.fov = 0.7f // around the fov for a 50mm lens in radians
-	};
-  */
-
 	Model model = {
 		.meshPath = "src/models/lantern.obj"
 	};
   
-// will set with id system later
 	loadModelObj(&model);
-	//dataToBuffers(&model, (Vertex*)vertices, 8, indices, 6);
 
 	// Creating a texture with stb image
 	int width, height, nrChannels;
-	//BMPImage imageData;
 	//loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
 	stbi_set_flip_vertically_on_load(true);
-	//unsigned char *imageData = stbi_load("src/fox.jpg", &width, &height, &nrChannels, 0); 
 	unsigned char *imageData = stbi_load("src/textures/Lantern_baseColor.png", &width, &height, &nrChannels, 0); 
   assert(imageData!=NULL);
 	glGenTextures(1, &model.texture);
@@ -654,29 +534,18 @@ int main(){
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+  // TODO change rgb to rgba for input
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageData);
-//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageData.width, imageData.height, 0, GL_BGR, GL_UNSIGNED_BYTE, imageData.data);
 	glGenerateMipmap(GL_TEXTURE_2D);
-	//free(imageData.data);
   free(imageData);
 
-	 //When multiplying matrices the right-most matrix is first multiplied with the vector so you should read the multiplications from right to left. It is advised to first do scaling operations, then rotations and lastly translations when combining matrices
-	//If transpose is GL_FALSE, each matrix is assumed to be supplied in column major order. If transpose is GL_TRUE, each matrix is assumed to be supplied in row major order
-	//local space -> model matrix -> world space -> view matrix -> view space -> projection matrix -> clip space -> viewport transform -> screen space
-	//TODO abstract this awful code
-
-	float modelMat[16] = {
-	1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	0, 0, 0, 1
-	};
+	// local space -> model matrix -> world space -> view matrix -> view space -> projection matrix -> clip space -> viewport transform -> screen space
 
 	float viewMat[16] = {
-	1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	0, 0, 0, 1
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
 	};
 
 	float projectionMat[16] = {
@@ -685,13 +554,7 @@ int main(){
 	0, 0, 1, 0,
 	0, 0, 0, 1
 	};
-	
-	float rot[] = {0.0, 0.0, 0.0};
-	float trans[] = {0.0, 0.0, -10.0};
 
-	// Move the camera
-
-	glm_translate((float (*)[4])viewMat, trans);
 	glm_perspective(0.780f, (float)(880.0/600.0), 0.1f, 100.0f, (float(*)[4])projectionMat);
 
 	unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
@@ -704,68 +567,67 @@ int main(){
 	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
   Camera* camera = initCamera("Fox Cam", 0.780f);
+  float cameraSpeed = 0.1;
+  float cameraRotationSpeed = 100;
   camera->pos.x = 0;
   camera->pos.y = 0;
   camera->pos.z = 30;
+
   Spacemouse* spacemouse = initSpacemouse();
 
+  // TODO fix last frame so there isn't a huge deltaTime spike on start
 	while(!glfwWindowShouldClose(window)){
 		// calculate delta time
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
-    // TODO convert camera view to quaternion plus position?
-    // move camera
     pollSpacemouse(spacemouse);
-    float cameraSpeed = 0.1;
-    float cameraRotationSpeed = 100;
 
-    //rotated v = v.xyz + 2*cross(cross(v.xyz, quaternion.xyz) + quaternion.w*model.xyz, quaternion.xyz);
-
-    
     float rot[4];
-    // pitch(3.14159/180.0)*
-    //axisAngleToQuat(rot, (3.14159/180.0)*(spacemouse->rx / 350.0)*deltaTime*cameraRotationSpeed, rot);
-    // pitch
+    float tmp_axis[3];
 
     glm_vec3_normalize(camera->lookAt.d);
     glm_vec3_normalize(camera->lookAt.u);
     glm_vec3_normalize(camera->lookAt.r);
-    float tmp[3];
-    tmp[0] = 1;
-    tmp[1] = 0;
-    tmp[2] = 0;
-    axisAngleToQuat(tmp, (3.14159/180.0)*(spacemouse->rx / 350.0)*deltaTime*cameraRotationSpeed, rot);
+
+    tmp_axis[0] = 1;
+    tmp_axis[1] = 0;
+    tmp_axis[2] = 0;
+
+    // pitch
+    axisAngleToQuat(tmp_axis, (3.14159/180.0)*(spacemouse->rx / 350.0)*deltaTime*cameraRotationSpeed, rot);
     rotateVec3(camera->lookAt.r, rot);
     rotateVec3(camera->lookAt.d, rot);
     rotateVec3(camera->lookAt.u, rot);
 
-    tmp[0] = 0;
-    tmp[1] = 0;
-    tmp[2] = 1;
+    tmp_axis[0] = 0;
+    tmp_axis[1] = 0;
+    tmp_axis[2] = 1;
+
     // roll
-    axisAngleToQuat(tmp, (3.14159/180.0)*(spacemouse->ry / 350.0)*deltaTime*cameraRotationSpeed, rot);
+    axisAngleToQuat(tmp_axis, (3.14159/180.0)*(spacemouse->ry / 350.0)*deltaTime*cameraRotationSpeed, rot);
     rotateVec3(camera->lookAt.d, rot);
     rotateVec3(camera->lookAt.r, rot);
     rotateVec3(camera->lookAt.u, rot);
 
-    tmp[0] = 0;
-    tmp[1] = 1;
-    tmp[2] = 0;
+    tmp_axis[0] = 0;
+    tmp_axis[1] = 1;
+    tmp_axis[2] = 0;
+
     // yaw
-    axisAngleToQuat(tmp, -(3.14159/180.0)*(spacemouse->rz / 350.0)*deltaTime*cameraRotationSpeed, rot);
+    axisAngleToQuat(tmp_axis, -(3.14159/180.0)*(spacemouse->rz / 350.0)*deltaTime*cameraRotationSpeed, rot);
     rotateVec3(camera->lookAt.u, rot);
     rotateVec3(camera->lookAt.r, rot);
     rotateVec3(camera->lookAt.d, rot);
 
-    float s[3];
-    s[0] = spacemouse->x;
-    s[1] = -1.0*spacemouse->z;
-    s[2] = spacemouse->y;
-    camera->pos.x += glm_dot(camera->lookAt.r, s) * deltaTime * cameraSpeed;
-    camera->pos.y += glm_dot(camera->lookAt.u, s) * deltaTime * cameraSpeed;
-    camera->pos.z += glm_dot(camera->lookAt.d, s) * deltaTime * cameraSpeed;
+    float spacemouseRelSpeed[3];
+    spacemouseRelSpeed[0] = spacemouse->x;
+    spacemouseRelSpeed[1] = -1.0*spacemouse->z;
+    spacemouseRelSpeed[2] = spacemouse->y;
+    camera->pos.x += glm_dot(camera->lookAt.r, spacemouseRelSpeed) * deltaTime * cameraSpeed;
+    camera->pos.y += glm_dot(camera->lookAt.u, spacemouseRelSpeed) * deltaTime * cameraSpeed;
+    camera->pos.z += glm_dot(camera->lookAt.d, spacemouseRelSpeed) * deltaTime * cameraSpeed;
 
     viewMat[0] = camera->lookAt.r[0];
     viewMat[1] = camera->lookAt.r[1];
@@ -789,39 +651,32 @@ int main(){
     p[1] = camera->pos.pos[1] * -1.0;
     p[2] = camera->pos.pos[2] * -1.0;
     glm_translate((float (*)[4])viewMat, p);
-    
 
 	  glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
-	  float modelMat[16];
-	  float trans[] = {3.0, 0.0, -10.0};
-	  //float trans[] = {5.0, 0.0, 0.0};
+	  float trans[] = {0.0, 0.0, -10.0};
     float axis[3] = {0, 0, 0};
-    glm_normalize(axis);
-    //float axis[3] = {0.707107, 0.707107, 0};
     float scale[3] = {1.0, 1.0, 1.0};
+    glm_normalize(axis);
     // convert rotation to quaternion
     axisAngleToQuat(axis, currentFrame*5, rot);
-    //printf("%f, %f, %f, %f\n", rot[0], rot[1], rot[2], rot[3]);
-
 
 	  glUniform3fv(translationLoc, 1, trans);
 	  glUniform4fv(rotationLoc, 1, rot);
 	  glUniform3fv(scaleLoc, 1, scale);
+    // TODO move to polling
 		processInput(window);
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT);
     //glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// bind texture
-		//TODO make initalizer nullify fields
 		glBindTexture(GL_TEXTURE_2D, model.texture);
 		// render container
 		glUseProgram(shaderProgram);
     glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-		//TODO remove wireframe after testing
+    // Wireframe mode
   	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
 		// draw buffer swap
@@ -829,7 +684,6 @@ int main(){
 		glfwPollEvents();
     printf("%f\n", 1.0/deltaTime);
 	}
-	// deallocate vao,vbo,ebo
 	glfwTerminate();
 	return 0;
 }
