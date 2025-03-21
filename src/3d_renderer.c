@@ -548,6 +548,7 @@ int main(){
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
+		processInput(window);
     pollSpacemouse(spacemouse);
 
     float rot[4];
@@ -630,8 +631,7 @@ int main(){
 	  glUniform3fv(translationLoc, 1, trans);
 	  glUniform4fv(rotationLoc, 1, rot);
 	  glUniform3fv(scaleLoc, 1, scale);
-    // TODO move to polling
-		processInput(window);
+
 		// rendering commands here
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     //glEnable(GL_CULL_FACE);
