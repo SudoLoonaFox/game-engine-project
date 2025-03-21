@@ -179,9 +179,6 @@ void axisAngleToQuat(float axis[3], float theta, float dest[4]){
 
 void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
   // for each vertex find adjacent faces and calculate their normals
-  // trying with dotproduct. may need to convert cos theta to theta
-  // TODO rewrite as compute shader
-  printf("Started calcVertexNormals\n");
   float* faceNormals = malloc(indicesLen/3 * sizeof(float)*3);
   float* faceSurfaceArea = malloc(indicesLen/3 * sizeof(float));
   for(int i = 0; i < indicesLen/3; i++){
@@ -575,7 +572,6 @@ int main(){
 
   Spacemouse* spacemouse = initSpacemouse();
 
-  // TODO fix last frame so there isn't a huge deltaTime spike on start
 	while(!glfwWindowShouldClose(window)){
 		// calculate delta time
 		float currentFrame = glfwGetTime();
