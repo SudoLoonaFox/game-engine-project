@@ -215,6 +215,8 @@ void relLookCam(float* r, float* u, float* d, float* pos, float pitch, float yaw
   rotateVec3(d, rot);
 
   float trans[3] = {x, y, z};
+  // to make movement consistent
+  glm_vec3_normalize(trans);
   pos[0] += glm_dot(r, trans) * deltaTime * transSpeed;
   pos[1] += glm_dot(u, trans) * deltaTime * transSpeed;
   pos[2] += glm_dot(d, trans) * deltaTime * transSpeed;
@@ -601,7 +603,7 @@ int main(){
 	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
   Camera* camera = initCamera("Fox Cam", 0.780f);
-  float cameraSpeed = 0.1;
+  float cameraSpeed = 20;
   float cameraRotationSpeed = 100;
   camera->pos.x = 0;
   camera->pos.y = 0;
