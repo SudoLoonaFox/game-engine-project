@@ -17,13 +17,11 @@
 
 #include "input.h"
 
-// Not in use currently
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
 
-// will have multiple ones for different rendering types
 const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
 const char* fragmentShaderPath = "src/shaders/fragmentShader.glsl";
 
