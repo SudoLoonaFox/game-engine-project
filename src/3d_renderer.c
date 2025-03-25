@@ -660,5 +660,6 @@ int main(){
     printf("%f\n", 1.0/deltaTime);
 	}
 	glfwTerminate();
+  free(camera);
 	return 0;
 }
