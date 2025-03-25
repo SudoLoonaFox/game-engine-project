@@ -356,6 +356,16 @@ void pollSpacemouse(Spacemouse* spacemouse){
   pthread_rwlock_unlock(&spacemouse->lock);
 }
 
+void spacemouseEulerAngles(Spacemouse* spacemouse, float* pitch, float* yaw, float* roll, float* x, float* y, float* z){
+  *pitch = (3.14159/180.0)*(spacemouse->rx / 350.0);
+  *roll = (3.14159/180.0)*(spacemouse->ry / 350.0);
+  *yaw = -(3.14159/180.0)*(spacemouse->rz / 350.0);
+  *x = spacemouse->x;
+  *y = -1.0*spacemouse->z;
+  *z = spacemouse->y;
+  return;
+}
+
 // double pointer to set the pointer to be null
 void termSpacemouse(Spacemouse** spacemouse){
   if(*spacemouse == NULL){
@@ -366,23 +376,3 @@ void termSpacemouse(Spacemouse** spacemouse){
   // close file
   // kill thread
 }
-
-/*
-int main(){
-  /*
-  Spacemouse* spacemouse = initSpacemouse();
-  while(1){
-    pollSpacemouse(spacemouse);
-    printf("\r");
-  	printf("x: %04i,\t", spacemouse->x);
-  	printf("y: %04i,\t", spacemouse->y);
-  	printf("z: %04i,\t", spacemouse->z);
-  	printf("rx: %04i,\t", spacemouse->rx);
-  	printf("ry: %04i,\t", spacemouse->ry);
-  	printf("rz: %04i,\t", spacemouse->rz);
-  	printf("btn_0: %04i,\t", spacemouse->btn_0);
-  	printf("btn_1: %04i", spacemouse->btn_1);
-  }
-  return 0;
-}
-*/

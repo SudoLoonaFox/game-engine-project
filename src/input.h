@@ -97,5 +97,7 @@ Spacemouse* initSpacemouse();
 
 void pollSpacemouse(Spacemouse* spacemouse);
 
+void spacemouseEulerAngles(Spacemouse* spacemouse, float* pitch, float* yaw, float* roll, float* x, float* y, float* z);
+
 void termSpacemouse(Spacemouse** spacemouse);
 #endif

@@ -176,73 +176,73 @@ void axisAngleToQuat(float axis[3], float theta, float dest[4]){
   dest[3] = cos(theta/2.0);
 }
 
-
 // takes in a lookat matrix and pitch roll yaw angles
-void relLookCam(float* r, float* u, float* d, float* pos, float pitch, float yaw, float roll, float* trans, float transSpeed, float rotSpeed, float deltaTime, float dest[16]){
-    // TODO move into general relative angles to transform lookat matrix
-    float rot[4];
-    float tmp_axis[3];
+void relLookCam(float* r, float* u, float* d, float* pos, float pitch, float yaw, float roll, float x, float y, float z, float transSpeed, float rotSpeed, float deltaTime, float dest[16]){
+  // TODO move into general relative angles to transform lookat matrix
+  float rot[4];
+  float tmp_axis[3];
 
-    glm_vec3_normalize(d);
-    glm_vec3_normalize(u);
-    glm_vec3_normalize(r);
+  glm_vec3_normalize(d);
+  glm_vec3_normalize(u);
+  glm_vec3_normalize(r);
 
-    tmp_axis[0] = 1;
-    tmp_axis[1] = 0;
-    tmp_axis[2] = 0;
+  tmp_axis[0] = 1;
+  tmp_axis[1] = 0;
+  tmp_axis[2] = 0;
 
-    // pitch
-    axisAngleToQuat(tmp_axis, pitch * rotSpeed * deltaTime, rot);
-    rotateVec3(r, rot);
-    rotateVec3(d, rot);
-    rotateVec3(u, rot);
+  // pitch
+  axisAngleToQuat(tmp_axis, pitch * rotSpeed * deltaTime, rot);
+  rotateVec3(r, rot);
+  rotateVec3(d, rot);
+  rotateVec3(u, rot);
 
-    tmp_axis[0] = 0;
-    tmp_axis[1] = 0;
-    tmp_axis[2] = 1;
+  tmp_axis[0] = 0;
+  tmp_axis[1] = 0;
+  tmp_axis[2] = 1;
 
-    // roll
-    axisAngleToQuat(tmp_axis, roll * rotSpeed * deltaTime, rot);
-    rotateVec3(d, rot);
-    rotateVec3(r, rot);
-    rotateVec3(u, rot);
+  // roll
+  axisAngleToQuat(tmp_axis, roll * rotSpeed * deltaTime, rot);
+  rotateVec3(d, rot);
+  rotateVec3(r, rot);
+  rotateVec3(u, rot);
 
-    tmp_axis[0] = 0;
-    tmp_axis[1] = 1;
-    tmp_axis[2] = 0;
+  tmp_axis[0] = 0;
+  tmp_axis[1] = 1;
+  tmp_axis[2] = 0;
 
-    // yaw
-    axisAngleToQuat(tmp_axis, yaw * rotSpeed * deltaTime, rot);
-    rotateVec3(u, rot);
-    rotateVec3(r, rot);
-    rotateVec3(d, rot);
+  // yaw
+  axisAngleToQuat(tmp_axis, yaw * rotSpeed * deltaTime, rot);
+  rotateVec3(u, rot);
+  rotateVec3(r, rot);
+  rotateVec3(d, rot);
 
-    pos[0] += glm_dot(r, trans) * deltaTime * transSpeed;
-    pos[1] += glm_dot(u, trans) * deltaTime * transSpeed;
-    pos[2] += glm_dot(d, trans) * deltaTime * transSpeed;
+  float trans[3] = {x, y, z};
+  pos[0] += glm_dot(r, trans) * deltaTime * transSpeed;
+  pos[1] += glm_dot(u, trans) * deltaTime * transSpeed;
+  pos[2] += glm_dot(d, trans) * deltaTime * transSpeed;
 
-    dest[0] = r[0];
-    dest[1] = r[1];
-    dest[2] = r[2];
-    dest[3] = 0;
-    dest[4] = u[0];
-    dest[5] = u[1];
-    dest[6] = u[2];
-    dest[7] = 0;
-    dest[8] = d[0];
-    dest[9] = d[1];
-    dest[10] = d[2];
-    dest[11] = 0;
-    dest[12] = 0;
-    dest[13] = 0;
-    dest[14] = 0;
-    dest[15] = 1;
+  dest[0] = r[0];
+  dest[1] = r[1];
+  dest[2] = r[2];
+  dest[3] = 0;
+  dest[4] = u[0];
+  dest[5] = u[1];
+  dest[6] = u[2];
+  dest[7] = 0;
+  dest[8] = d[0];
+  dest[9] = d[1];
+  dest[10] = d[2];
+  dest[11] = 0;
+  dest[12] = 0;
+  dest[13] = 0;
+  dest[14] = 0;
+  dest[15] = 1;
 
-    float p[3];
-    p[0] = pos[0] * -1.0;
-    p[1] = pos[1] * -1.0;
-    p[2] = pos[2] * -1.0;
-    glm_translate((float (*)[4])dest, p);
+  float p[3];
+  p[0] = pos[0] * -1.0;
+  p[1] = pos[1] * -1.0;
+  p[2] = pos[2] * -1.0;
+  glm_translate((float (*)[4])dest, p);
 }
 
 void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
@@ -620,16 +620,12 @@ int main(){
 		processInput(window);
     pollSpacemouse(spacemouse);
 
-    float pitch = (3.14159/180.0)*(spacemouse->rx / 350.0);
-    float roll = (3.14159/180.0)*(spacemouse->ry / 350.0);
-    float yaw = -(3.14159/180.0)*(spacemouse->rz / 350.0);
-    float spacemouseRelTrans[3];
-    spacemouseRelTrans[0] = spacemouse->x;
-    spacemouseRelTrans[1] = -1.0*spacemouse->z;
-    spacemouseRelTrans[2] = spacemouse->y;
+    float pitch, yaw, roll, x, y, z;
+    spacemouseEulerAngles(spacemouse, &pitch, &yaw, &roll, &x, &y, &z);
 
+    // updates camera lookat and view matrix
     relLookCam(camera->lookAt.r, camera->lookAt.u, camera->lookAt.d, camera->pos.pos, pitch, yaw, roll,
-               spacemouseRelTrans, cameraSpeed, cameraRotationSpeed, deltaTime, viewMat);
+               x, y, z, cameraSpeed, cameraRotationSpeed, deltaTime, viewMat);
 
 	  glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
