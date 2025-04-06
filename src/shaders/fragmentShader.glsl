@@ -19,43 +19,20 @@ uniform Material material;
 */
 uniform sampler2D texture1;
 
+vec3 lightColor = vec3(1, 1, 1);
+float ambientStrength = 0.2;
+
 void main(){
   // TODO set up real lights
+	// normalize lighting and have intensity value too
   vec3 norm = normalize(vertexNormal);
   vec3 vecLight = vec3(1.2, 1.0, 2.0);
   vec3 lightDir = normalize(vecLight - fragPos);
   float diff = max(dot(norm, vecLight), 0.0);
-	/*
-	// ambient
-	vec3 ambient = lightColor * material.ambient;
 
-	// diffuse
-	vec3 norm = normalize(Normal);
-	vec3 lightDir = normalize(lightPos - FragPos);
-	float diff = max(dot(norm, lightPos), 0.0);
-	vec3 diffuse = lightColor * (diff * material.diffuse);
-
-	// specular
-	vec3 viewDir = normalize(viewPos - FragPos);
-	vec3 reflectDir = reflect(-lightDir, norm);
-	float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-	vec3 specular = lightColor * spec * material.specular;
-
-	vec3 result = ambient + diffuse + specular;
-
-*/
-	//FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
-  // basic hue shift
-	vec4 baseColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
-  //FragColor = baseColor * vec4(vec3(diff), 1.0);
-  //FragColor = normalize(baseColor + vec4(0.8*diff, 0.0, -0.8*diff, 1.0f));
-	//FragColor = vec4(vec3(1.0f, 0.5f, 0.2f)*diff, 1.0f);
-	FragColor = texture(texture1, texCoord);
-  /*
-	FragColor = vec4(texture(texture1, texCoord).xyz*diff, 1.0f);
-  FragColor = vec4(vertexNormal, 1.0);
-  */
+  //FragColor = vec4(texture(texture1, texCoord).xyz * diff, 1.0);
+  FragColor = vec4(texture(texture1, texCoord).xyz * max(diff, ambientStrength), 1.0);
+  //FragColor = vec4(FragColor.xyz + max(texture(texture1, texCoord).xyz, texture(texture1, texCoord).xyz*ambient.xyz), 1.0f);
 
 	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
 //	FragColor = vec4(result, 1.0);
