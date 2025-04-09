@@ -13,6 +13,9 @@
 #include <cglm/cglm.h>
 #include <cglm/vec3.h>
 
+#define CGLTF_IMPLEMENTATION
+#include "cgltf.h"
+
 #include <math.h>
 
 #include "input.h"
@@ -29,9 +32,9 @@ float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
 typedef struct{
-	char* data;
-	int width;
-	int height;
+  char* data;
+  int width;
+  int height;
 }BMPImage;
 
 typedef union{
@@ -60,24 +63,24 @@ typedef struct{
 }LookAt;
 
 typedef struct{
-	unsigned int id;
-	char name[30];
-	char meshPath[30];
-	char texturePath[30];
-	unsigned int VAO;
-	unsigned int VBO;
-	unsigned int EBO;
-	unsigned int indicesLen;
-	unsigned int texture;
+  unsigned int id;
+  char name[30];
+  char meshPath[30];
+  char texturePath[30];
+  unsigned int VAO;
+  unsigned int VBO;
+  unsigned int EBO;
+  unsigned int indicesLen;
+  unsigned int texture;
   Positon pos;
-	Quaternion rot;
+  Quaternion rot;
   float scale;
   float modelMat[16];
 }Model;
 
 typedef struct{
-	char name[20];
-	float fov;
+  char name[20];
+  float fov;
   Positon pos;
   Quaternion rot;
   LookAt lookAt;
@@ -93,9 +96,9 @@ typedef struct{
       float z;
     };
   };
-	float r;
-	float g;
-	float b;
+  float r;
+  float g;
+  float b;
   union{
     float vn[3];
     struct{
@@ -106,17 +109,17 @@ typedef struct{
   };
   union{
     float vt[2];
-  struct{
-	  float u;
-	  float v;
+    struct{
+      float u;
+      float v;
     };
   };
 }Vertex;
 
 typedef struct{ // vertex indices
-	unsigned int v1;
-	unsigned int v2;
-	unsigned int v3;
+  unsigned int v1;
+  unsigned int v2;
+  unsigned int v3;
 }Face;
 #pragma pack(pop)
 
@@ -135,7 +138,7 @@ void eulerToQuaternion(float v[3], float q[4]){
 }
 */
 void rotateVec3(float v[3], float q[4]){
-//  model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
+  //  model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
   float tmp[3];
   float tmp2[3];
   glm_vec3_cross(v, q, tmp);
@@ -216,7 +219,6 @@ void relLookCam(float* r, float* u, float* d, float* pos, float pitch, float yaw
 
   float trans[3] = {x, y, z};
   // to make movement consistent
-  glm_vec3_normalize(trans);
   pos[0] += glm_dot(r, trans) * deltaTime * transSpeed;
   pos[1] += glm_dot(u, trans) * deltaTime * transSpeed;
   pos[2] += glm_dot(d, trans) * deltaTime * transSpeed;
@@ -276,7 +278,7 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
     glm_vec3_sub(c, a, ac);
 
     glm_vec3_cross(ab, ac, n);
-    
+
     // area of face abc is 0.5*||AB X AC||
     faceSurfaceArea[i] = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
     faceSurfaceArea[i] = sqrtf(faceSurfaceArea[i]) * 0.5;
@@ -310,33 +312,32 @@ void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int*
   free(faceSurfaceArea);
 }
 
-Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices){
-  printf("Started dataToBuffers\n");
-  glGenVertexArrays(1, &model->VAO);
-  glGenBuffers(1, &model->VBO);
-  glGenBuffers(1, &model->EBO);
+void dataToBuffers(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen, unsigned int* vao, unsigned int* vbo, unsigned int* ebo){
+  glGenVertexArrays(1, vao);
+  glGenBuffers(1, vbo);
+  glGenBuffers(1, ebo);
   // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-  glBindVertexArray(model->VAO);
+  glBindVertexArray(*vao);
 
-  glBindBuffer(GL_ARRAY_BUFFER, model->VBO);
+  glBindBuffer(GL_ARRAY_BUFFER, *vbo);
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*verticesLen, vertices, GL_STATIC_DRAW);
 
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*model->indicesLen, indices, GL_STATIC_DRAW);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*indicesLen, indices, GL_STATIC_DRAW);
 
-	int stride = sizeof(Vertex);
-	// position
+  int stride = sizeof(Vertex);
+  // position
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, stride, (void*)0);
   glEnableVertexAttribArray(0);
-	// color
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, stride, (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-	// vertex normal
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, stride, (void*)(6 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-	// texture coordinate
-	glVertexAttribPointer(3, 2, GL_FLOAT, GL_TRUE, stride, (void*)(9 * sizeof(float)));
-	glEnableVertexAttribArray(3);
+  // color
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_TRUE, stride, (void*)(3 * sizeof(float)));
+  glEnableVertexAttribArray(1);
+  // vertex normal
+  glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, stride, (void*)(6 * sizeof(float)));
+  glEnableVertexAttribArray(2);
+  // texture coordinate
+  glVertexAttribPointer(3, 2, GL_FLOAT, GL_TRUE, stride, (void*)(9 * sizeof(float)));
+  glEnableVertexAttribArray(3);
 
   // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -347,54 +348,52 @@ Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, u
   // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
   // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
   glBindVertexArray(0);
-  printf("Finished dataToBuffers\n");
-	return model;
 }
 
 void loadModelObj(Model* model){
-	const int DEFAULT_SIZE = 5000000;
-	FILE* file = fopen(model->meshPath, "r");
-	if(file == NULL){
-		return;
-	}
-	// TODO Add reallocation
-	unsigned int verticesLen = 0;
-	unsigned int textureCoordinatesLen = 0;
-	unsigned int vertexNormalsLen = 0;
-	unsigned int faceIndex = 0;
-	Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
+  const int DEFAULT_SIZE = 5000000;
+  FILE* file = fopen(model->meshPath, "r");
+  if(file == NULL){
+    return;
+  }
+  // TODO Add reallocation
+  unsigned int verticesLen = 0;
+  unsigned int textureCoordinatesLen = 0;
+  unsigned int vertexNormalsLen = 0;
+  unsigned int faceIndex = 0;
+  Vertex* vertices = malloc(sizeof(Vertex)*DEFAULT_SIZE);
   // can do this without malloc
-	float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
-	float* vertexNormals = malloc(sizeof(float)*2*DEFAULT_SIZE);
-	unsigned int* indices = malloc(sizeof(unsigned int)*DEFAULT_SIZE*3);
-	// IMPORTANT: obj indexing starts at 1
-	char line[128];
-	while(fgets(line, 128, file)){
-		if(line[0] == 'v' && line[1] == ' '){
-			sscanf(line, "v %f %f %f\n", &vertices[verticesLen].x, &vertices[verticesLen].y, &vertices[verticesLen].z);
-			verticesLen++;
-		}
-		else if(line[0] == 'v' && line[1] == 't'){
-			sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
-			textureCoordinatesLen++;
-		}
-		else if(line[0] == 'v' && line[1] == 'n'){
-			sscanf(line, "vn %f %f %f", &vertexNormals[vertexNormalsLen*3], &vertexNormals[vertexNormalsLen*3+1], &vertexNormals[vertexNormalsLen*3+2]);
-			vertexNormalsLen++;
-		}
-		else if(line[0] == 'f' && line[1] == ' '){
-			// possible formats are:
-			// f v v v
-			// f v/vt v/vt v/vt
-			// f v/vt/vn v/vt/vn v/vt/vn
-			// f v//vn v//vn v//vn
-			if(3 == sscanf(line, "f %d %d %d", &indices[faceIndex*3], &indices[faceIndex*3+1], &indices[faceIndex*3+2])){
-				indices[faceIndex*3]--;
-				indices[faceIndex*3+1]--;
-				indices[faceIndex*3+2]--;
-				faceIndex++;
-				continue;
-			}
+  float* textureCoordinates = malloc(sizeof(float)*2*DEFAULT_SIZE);
+  float* vertexNormals = malloc(sizeof(float)*2*DEFAULT_SIZE);
+  unsigned int* indices = malloc(sizeof(unsigned int)*DEFAULT_SIZE*3);
+  // IMPORTANT: obj indexing starts at 1
+  char line[128];
+  while(fgets(line, 128, file)){
+    if(line[0] == 'v' && line[1] == ' '){
+      sscanf(line, "v %f %f %f\n", &vertices[verticesLen].x, &vertices[verticesLen].y, &vertices[verticesLen].z);
+      verticesLen++;
+    }
+    else if(line[0] == 'v' && line[1] == 't'){
+      sscanf(line, "vt %f %f\n", &textureCoordinates[2*textureCoordinatesLen], &textureCoordinates[2*textureCoordinatesLen+1]);
+      textureCoordinatesLen++;
+    }
+    else if(line[0] == 'v' && line[1] == 'n'){
+      sscanf(line, "vn %f %f %f", &vertexNormals[vertexNormalsLen*3], &vertexNormals[vertexNormalsLen*3+1], &vertexNormals[vertexNormalsLen*3+2]);
+      vertexNormalsLen++;
+    }
+    else if(line[0] == 'f' && line[1] == ' '){
+      // possible formats are:
+      // f v v v
+      // f v/vt v/vt v/vt
+      // f v/vt/vn v/vt/vn v/vt/vn
+      // f v//vn v//vn v//vn
+      if(3 == sscanf(line, "f %d %d %d", &indices[faceIndex*3], &indices[faceIndex*3+1], &indices[faceIndex*3+2])){
+        indices[faceIndex*3]--;
+        indices[faceIndex*3+1]--;
+        indices[faceIndex*3+2]--;
+        faceIndex++;
+        continue;
+      }
       unsigned int vt0;
       unsigned int vt1;
       unsigned int vt2;
@@ -403,9 +402,9 @@ void loadModelObj(Model* model){
       unsigned int vn2;
 
       if(9==sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d", &indices[faceIndex*3], &vt0, &vn0, &indices[faceIndex*3+1], &vt1, &vn1, &indices[faceIndex*3+2], &vt2, &vn2)){
-				indices[faceIndex*3]--;
-				indices[faceIndex*3+1]--;
-				indices[faceIndex*3+2]--;
+        indices[faceIndex*3]--;
+        indices[faceIndex*3+1]--;
+        indices[faceIndex*3+2]--;
         vn0--;
         vn1--;
         vn2--;
@@ -421,29 +420,30 @@ void loadModelObj(Model* model){
         memcpy(&vertices[indices[faceIndex*3+1]].vt, &textureCoordinates[2*vt1], sizeof(float)*2);
         memcpy(&vertices[indices[faceIndex*3+2]].vt, &textureCoordinates[2*vt2], sizeof(float)*2);
 
-				faceIndex++;
-				continue;
+        faceIndex++;
+        continue;
       }
-		}
-	}
+    }
+  }
 
   unsigned int indicesLen = faceIndex*3;
-	model->indicesLen = indicesLen; 
+  model->indicesLen = indicesLen; 
 
   if(!vertexNormalsLen){
     calcVertexNormals(vertices, verticesLen, indices, indicesLen);
   }
 
-	dataToBuffers(model, vertices, verticesLen, indices);
+  dataToBuffers(vertices, verticesLen, indices, model->indicesLen, &model->VAO, &model->VBO, &model->EBO);
+  //dataToBuffers(model, vertices, verticesLen, indices);
   free(vertices);
   free(textureCoordinates);
   free(vertexNormals);
   free(indices);
-	fclose(file);
+  fclose(file);
 }
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height){
-    glViewport(0, 0, width, height);
+  glViewport(0, 0, width, height);
 }  
 
 static void processInput(GLFWwindow *window){
@@ -453,154 +453,154 @@ static void processInput(GLFWwindow *window){
 }
 
 int logShaderCompileErrors(GLuint shader){
-	int success;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-	if(!success){
-		char infoLog[1024];
-		glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-		printf("Shader Error: %s\n", infoLog);
-	}
-	return success;
+  int success;
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+  if(!success){
+    char infoLog[1024];
+    glGetShaderInfoLog(shader, 1024, NULL, infoLog);
+    printf("Shader Error: %s\n", infoLog);
+  }
+  return success;
 }
 
 int loadBMPImage(const char* path, BMPImage* image){ // loads texture data into currently bound texture
-	int fd = open(path, O_RDONLY, S_IRUSR);
-	struct stat sb;
+  int fd = open(path, O_RDONLY, S_IRUSR);
+  struct stat sb;
   // TODO change to assert?
-	if(fstat(fd, &sb) == -1){
-		printf("Error loading file\n");
-	}
-	char* data = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	unsigned int width, height, offset, imageSize;
-	if(data[0] != 'B' || data[1] != 'M'){
-		// incorrect file type
-		printf("Invalid image type\n");
-	}
-	// TODO account for endianness
-	width = *(int*)&data[0x12];
-	height = *(int*)&data[0x16];
-	offset = *(int*)&data[0x0A];
-	imageSize = *(int*)&data[0x22];
-	// set default offset if needed
-	if(offset == 0) offset = 54;
-	if(imageSize == 0) imageSize = width * height * 3;
-	// copy data to new array
-	char* colorData = malloc(imageSize);
-	memcpy(colorData, data+offset, imageSize);
-	image->data = colorData;
-	image->width = width;
-	image->height = height;
+  if(fstat(fd, &sb) == -1){
+    printf("Error loading file\n");
+  }
+  char* data = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  unsigned int width, height, offset, imageSize;
+  if(data[0] != 'B' || data[1] != 'M'){
+    // incorrect file type
+    printf("Invalid image type\n");
+  }
+  // TODO account for endianness
+  width = *(int*)&data[0x12];
+  height = *(int*)&data[0x16];
+  offset = *(int*)&data[0x0A];
+  imageSize = *(int*)&data[0x22];
+  // set default offset if needed
+  if(offset == 0) offset = 54;
+  if(imageSize == 0) imageSize = width * height * 3;
+  // copy data to new array
+  char* colorData = malloc(imageSize);
+  memcpy(colorData, data+offset, imageSize);
+  image->data = colorData;
+  image->width = width;
+  image->height = height;
 
-	munmap(data, sb.st_size);
-	close(fd);
-	return 0;
+  munmap(data, sb.st_size);
+  close(fd);
+  return 0;
 };
 
 int main(){
-	GLFWwindow* window = NULL;
-	if(!glfwInit()){
-		return -1;
-	}
+  GLFWwindow* window = NULL;
+  if(!glfwInit()){
+    return -1;
+  }
 
-	window = glfwCreateWindow(800, 600, "Renderer", NULL, NULL);
-	if(!window){
-		glfwTerminate();
-		return -1;
-	}
+  window = glfwCreateWindow(800, 600, "Renderer", NULL, NULL);
+  if(!window){
+    glfwTerminate();
+    return -1;
+  }
 
-	glfwMakeContextCurrent(window);
-	glViewport(0, 0, 800, 600);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+  glfwMakeContextCurrent(window);
+  glViewport(0, 0, 800, 600);
+  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-	glewInit();
+  glewInit();
 
-	struct stat sb;
-	unsigned int vertexShader;
-	vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	int fd = open(vertexShaderPath, O_RDONLY, S_IRUSR);
-	if(fstat(fd, &sb)==-1){
-		printf("failed to load vertex shader source\n");
-	}
-	char* shaderSource = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	glShaderSource(vertexShader, 1, (const char**)&shaderSource, NULL);
-	munmap(shaderSource, sb.st_size);
-	close(fd);
-	glCompileShader(vertexShader);
+  struct stat sb;
+  unsigned int vertexShader;
+  vertexShader = glCreateShader(GL_VERTEX_SHADER);
+  int fd = open(vertexShaderPath, O_RDONLY, S_IRUSR);
+  if(fstat(fd, &sb)==-1){
+    printf("failed to load vertex shader source\n");
+  }
+  char* shaderSource = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  glShaderSource(vertexShader, 1, (const char**)&shaderSource, NULL);
+  munmap(shaderSource, sb.st_size);
+  close(fd);
+  glCompileShader(vertexShader);
 
-	logShaderCompileErrors(vertexShader);
+  logShaderCompileErrors(vertexShader);
 
-	unsigned int fragmentShader;
-	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	fd = open(fragmentShaderPath, O_RDONLY, S_IRUSR);
-	if(fstat(fd, &sb)==-1){
-		printf("failed to load fragment shader source\n");
-	}
-	shaderSource = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	glShaderSource(fragmentShader, 1, (const char**)&shaderSource, NULL);
-	munmap(shaderSource, sb.st_size);
-	close(fd);
-	glCompileShader(fragmentShader);
+  unsigned int fragmentShader;
+  fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  fd = open(fragmentShaderPath, O_RDONLY, S_IRUSR);
+  if(fstat(fd, &sb)==-1){
+    printf("failed to load fragment shader source\n");
+  }
+  shaderSource = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  glShaderSource(fragmentShader, 1, (const char**)&shaderSource, NULL);
+  munmap(shaderSource, sb.st_size);
+  close(fd);
+  glCompileShader(fragmentShader);
 
-	logShaderCompileErrors(fragmentShader);
+  logShaderCompileErrors(fragmentShader);
 
-	unsigned int shaderProgram;
-	shaderProgram = glCreateProgram();
-	glAttachShader(shaderProgram, vertexShader);
-	glAttachShader(shaderProgram, fragmentShader);
-	glLinkProgram(shaderProgram);
-	glUseProgram(shaderProgram);
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
+  unsigned int shaderProgram;
+  shaderProgram = glCreateProgram();
+  glAttachShader(shaderProgram, vertexShader);
+  glAttachShader(shaderProgram, fragmentShader);
+  glLinkProgram(shaderProgram);
+  glUseProgram(shaderProgram);
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
 
-	Model model = {
-		.meshPath = "src/models/lantern.obj"
-	};
-  
-	loadModelObj(&model);
+  Model model = {
+    .meshPath = "src/models/lantern.obj"
+  };
 
-	// Creating a texture with stb image
-	int width, height, nrChannels;
-	//loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char *imageData = stbi_load("src/textures/Lantern_baseColor.png", &width, &height, &nrChannels, 0); 
+  loadModelObj(&model);
+
+  // Creating a texture with stb image
+  int width, height, nrChannels;
+  //loadBMPImage("src/textures/fox.bmp", &imageData); // loads texture data into currently bound texture
+  stbi_set_flip_vertically_on_load(true);
+  unsigned char *imageData = stbi_load("src/textures/Lantern_baseColor.png", &width, &height, &nrChannels, 0); 
   assert(imageData!=NULL);
-	glGenTextures(1, &model.texture);
-	glBindTexture(GL_TEXTURE_2D, model.texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glGenTextures(1, &model.texture);
+  glBindTexture(GL_TEXTURE_2D, model.texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageData);
-	glGenerateMipmap(GL_TEXTURE_2D);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, imageData);
+  glGenerateMipmap(GL_TEXTURE_2D);
   free(imageData);
 
-	// local space -> model matrix -> world space -> view matrix -> view space -> projection matrix -> clip space -> viewport transform -> screen space
+  // local space -> model matrix -> world space -> view matrix -> view space -> projection matrix -> clip space -> viewport transform -> screen space
 
-	float viewMat[16] = {
+  float viewMat[16] = {
     1, 0, 0, 0,
     0, 1, 0, 0,
     0, 0, 1, 0,
     0, 0, 0, 1
-	};
+  };
 
-	float projectionMat[16] = {
-	1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	0, 0, 0, 1
-	};
+  float projectionMat[16] = {
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+  };
 
-	glm_perspective(0.780f, (float)(880.0/600.0), 0.1f, 100.0f, (float(*)[4])projectionMat);
+  glm_perspective(0.780f, (float)(880.0/600.0), 0.1f, 100.0f, (float(*)[4])projectionMat);
 
-	unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
-	unsigned int viewMatLoc = glGetUniformLocation(shaderProgram, "view");
-	unsigned int translationLoc = glGetUniformLocation(shaderProgram, "translation");
-	unsigned int rotationLoc = glGetUniformLocation(shaderProgram, "rotation");
-	unsigned int scaleLoc = glGetUniformLocation(shaderProgram, "scale");
+  unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
+  unsigned int viewMatLoc = glGetUniformLocation(shaderProgram, "view");
+  unsigned int translationLoc = glGetUniformLocation(shaderProgram, "translation");
+  unsigned int rotationLoc = glGetUniformLocation(shaderProgram, "rotation");
+  unsigned int scaleLoc = glGetUniformLocation(shaderProgram, "scale");
 
-	glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
-	glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
+  glUniformMatrix4fv(projMatLoc, 1, GL_FALSE, (float*)projectionMat);
+  glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
   Camera* camera = initCamera("Fox Cam", 0.780f);
   float cameraSpeed = 20;
@@ -610,56 +610,71 @@ int main(){
   camera->pos.z = 30;
 
   Spacemouse* spacemouse = initSpacemouse();
+  Gamepad* gamepad = initGamepad();
 
-	while(!glfwWindowShouldClose(window)){
-		// calculate delta time
-		float currentFrame = glfwGetTime();
-		deltaTime = currentFrame - lastFrame;
-		lastFrame = currentFrame;
+  /*
+  // TODO move this elsewhere
+  cgltf_options options = {0};
+  cgltf_data* data = NULL;
+  cgltf_result result = cgltf_parse_file(&options, "scenes/bistro_int.gltf", &data);
+  if (result == cgltf_result_success){
+Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices){
+    
+    cgltf_free(data);
+  }
+    */
+  while(!glfwWindowShouldClose(window)){
+    // calculate delta time
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
 
-		processInput(window);
+    processInput(window);
     pollSpacemouse(spacemouse);
+    pollGamepad(gamepad);
 
     float pitch, yaw, roll, x, y, z;
     spacemouseEulerAngles(spacemouse, &pitch, &yaw, &roll, &x, &y, &z);
+
+    //   gamepadFps(gamepad, &pitch, &yaw, &roll, &x, &y, &z);
 
     // updates camera lookat and view matrix
     relLookCam(camera->lookAt.r, camera->lookAt.u, camera->lookAt.d, camera->pos.pos, pitch, yaw, roll,
                x, y, z, cameraSpeed, cameraRotationSpeed, deltaTime, viewMat);
 
-	  glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
+    glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
     float rot[4];
-	  float trans[] = {0.0, 0.0, -10.0};
+    float trans[] = {0.0, 0.0, -10.0};
     float axis[3] = {0, 0, 0};
     float scale[3] = {1.0, 1.0, 1.0};
     glm_normalize(axis);
     // convert rotation to quaternion
     axisAngleToQuat(axis, currentFrame*5, rot);
 
-	  glUniform3fv(translationLoc, 1, trans);
-	  glUniform4fv(rotationLoc, 1, rot);
-	  glUniform3fv(scaleLoc, 1, scale);
+    glUniform3fv(translationLoc, 1, trans);
+    glUniform4fv(rotationLoc, 1, rot);
+    glUniform3fv(scaleLoc, 1, scale);
 
-		// rendering commands here
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    // rendering commands here
+    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     //glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// bind texture
-		glBindTexture(GL_TEXTURE_2D, model.texture);
-		// render container
-		glUseProgram(shaderProgram);
+    // bind texture
+    glBindTexture(GL_TEXTURE_2D, model.texture);
+    // render container
+    glUseProgram(shaderProgram);
     glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
     // Wireframe mode
-  	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
-		// draw buffer swap
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
+    // draw buffer swap
+    glfwSwapBuffers(window);
+    glfwPollEvents();
     printf("%f\n", 1.0/deltaTime);
-	}
-	glfwTerminate();
+  }
+  glfwTerminate();
   free(camera);
-	return 0;
+  return 0;
 }
