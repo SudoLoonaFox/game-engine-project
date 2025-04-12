@@ -581,6 +581,7 @@ int main(){
   glDeleteShader(fragmentShader);
 
   Model model = {.meshPath = "src/models/lantern.obj"};
+  loadModelObj(&model);
 
   // Creating a texture with stb image
   int width, height, nrChannels;
@@ -641,13 +642,33 @@ int main(){
   // TODO move this elsewhere
   cgltf_options options = {0};
   cgltf_data* data = NULL;
-  cgltf_result result = cgltf_parse_file(&options, "scenes/bistro_int.gltf", &data);
-  if (result == cgltf_result_success){
-Model* dataToBuffers(Model* model, Vertex* vertices, unsigned int verticesLen, unsigned int* indices){
-    
+  // cgltf_result result = cgltf_parse_file(&options, "scenes/bistro_int.gltf",
+  // &data);
+  cgltf_result result = cgltf_parse_file(&options, "src/models/test.gltf", &data);
+  typedef struct{
+    unsigned int vbo;
+    unsigned int vao;
+    unsigned int ebo;
+    unsigned int texture;
+  }Mesh;
+  if(result == cgltf_result_success){
+    printf("Success\n");
+    // create meshes
+    Mesh* meshes = malloc(sizeof(Mesh) * data->meshes_count);
+
+    for(int i = 0; i < data->meshes_count; i++){
+      // go through every mesh and set data
+      // get buffer view from accessors
+      // for each mesh go into each accessor and get the data.
+      // meshes.primitives[0].attributes will give the position and normal
+      for(int j = 0; j < data->meshes[i].primitives_count; j++){
+        printf("%s: %s\n", data->meshes[i].primitives->attributes->name, data->meshes[i].primitives->attributes->name);
+      }
+    }
+
     cgltf_free(data);
   }
-    */
+  */
   while(!glfwWindowShouldClose(window)){
     // calculate delta time
     float currentFrame = glfwGetTime();
