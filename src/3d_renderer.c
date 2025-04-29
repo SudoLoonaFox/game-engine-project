@@ -23,6 +23,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define MAX_OBJECTS 2000
+
 const char* MODEL_IN_FORMAT = "%d,%[^,],%[^,],%[^,]";
 
 const char* vertexShaderPath = "src/shaders/vertexShader.glsl";
@@ -67,10 +69,12 @@ typedef struct{
   char name[30];
   char meshPath[30];
   char texturePath[30];
+  unsigned int BO;
   unsigned int VAO;
   unsigned int VBO;
   unsigned int EBO;
   unsigned int indicesLen;
+  unsigned int indicesOffset;
   unsigned int texture;
   Positon pos;
   Quaternion rot;
@@ -248,6 +252,7 @@ void relLookCam(float* r, float* u, float* d, float* pos, float pitch, float yaw
   glm_translate((float (*)[4])dest, p);
 }
 
+// TODO rewrite to not depend on proprietary types
 void calcVertexNormals(Vertex* vertices, unsigned int verticesLen, unsigned int* indices, unsigned int indicesLen){
   // for each vertex find adjacent faces and calculate their normals
   float* faceNormals = malloc(indicesLen / 3 * sizeof(float) * 3);
@@ -354,6 +359,128 @@ void dataToBuffers(Vertex* vertices, unsigned int verticesLen, unsigned int* ind
   // call to glBindVertexArray anyways so we generally don't unbind VAOs (nor
   // VBOs) when it's not directly necessary.
   glBindVertexArray(0);
+}
+
+// TODO Make not reliant on Model struct?
+int loadGltf(Model** meshesPtr, unsigned int* meshesLen){
+  // TODO move this elsewhere
+  //const char path[] = "src/models/Fox/glTF/Fox.gltf";
+  //const char path[] = "src/models/test.gltf";
+  const char path[] = "src/models/cube.glb";
+  //const char path[] = "src/models/monkey.glb";
+  //const char path[] = "src/scenes/bistro_int.gltf";
+  #define MAX_BUFFERS 10
+  cgltf_options options = {0};
+  cgltf_data* data = NULL;
+  //cgltf_result result = cgltf_parse_file(&options, "src/scenes/bistro_int.gltf", &data);
+  //cgltf_result result = cgltf_parse_file(&options, "src/models/test.gltf", &data);
+  cgltf_result result = cgltf_parse_file(&options, path, &data);
+  if(result != cgltf_result_success){
+    return -1;
+    printf("Error loading gltf\n");
+    *meshesPtr = NULL;
+  }
+  // Setup buffers
+  
+  // TODO make this work using single buffer for multiple objects
+
+  unsigned int buffers [MAX_BUFFERS];
+  printf("%li\n", data->buffers_count);
+  printf("load_buffers result: %i\n", cgltf_load_buffers( &options, data, path));
+  assert(data->buffers[0].data != NULL);
+  for(int i = 0; i < data->buffers_count; i++){
+    // TODO check for buffer overflow
+    glGenBuffers(1, &buffers[i]);
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[i]);
+    glBufferData(GL_ARRAY_BUFFER, data->buffers[i].size, data->buffers->data, GL_STATIC_DRAW);
+  }
+  // Malloc the meshes
+  Model* meshes = malloc(sizeof(Model) * data->meshes_count);
+  *meshesPtr = meshes;
+
+
+  for(int i = 0; i < data->meshes_count; i++){
+    // Create and bind vertex array object
+    glGenVertexArrays(1, &meshes[i].VAO);
+    glBindVertexArray(meshes[i].VAO);
+    // TODO make this work in the event multiple buffers are used for the same object. This is a hack for now
+    meshes[i].VBO = buffers[0];
+
+
+    // Bind Vertex buffer
+    glBindBuffer(GL_ARRAY_BUFFER, meshes[i].VBO);
+
+    // Set buffer attributes
+
+    // TODO handle multiple primitives
+    unsigned int byteOffset;
+    unsigned int byteLength;
+    unsigned int byteStride;
+    unsigned int count;
+    for(int j = 0; j < data->meshes[i].primitives[0].attributes_count; j++){
+      byteOffset = data->meshes[i].primitives[0].attributes[j].data->offset;
+      byteOffset += data->meshes[i].primitives[0].attributes[j].data->buffer_view->offset;
+      byteLength = data->meshes[i].primitives[0].attributes[j].data->buffer_view->size;
+      byteStride = data->meshes[i].primitives[0].attributes[j].data->buffer_view->stride;
+      count = data->meshes[i].primitives[0].attributes[j].data->count;
+      printf("byteOffset %i\n", byteOffset);
+      printf("count %i\n", count);
+      //printf("%s\n", data->meshes[i].primitives[0].attributes[j].name);
+
+      if(strcmp(data->meshes[i].primitives[0].attributes[j].name, "POSITION") == 0){
+        // position
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_TRUE, byteStride, (void*)byteOffset);
+        glEnableVertexAttribArray(0);
+        printf("Position\n");
+        printf("stride: %i\n", byteStride);
+      }
+      if(strcmp(data->meshes[i].primitives[0].attributes[j].name, "NORMAL") == 0){
+        // normal
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_TRUE, byteStride, (void*)byteOffset);
+        glEnableVertexAttribArray(2);
+        printf("Normal\n");
+        printf("stride: %i\n", byteStride);
+      }
+
+      /*
+      for(int t = 0; t < count * 3; t++){
+        printf("%f ", ((float*)((char*)data->buffers[0].data + byteOffset))[t]);
+      }
+      printf("\n");
+      */
+    }
+
+    // TODO make work for meshes without indices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshes->EBO);
+    byteOffset = data->meshes[i].primitives[0].indices->offset;
+    byteOffset += data->meshes[i].primitives[0].indices->buffer_view->offset;
+    //printf("%p\n", data->buffers[i].data);
+    //void* indices = data->meshes[i].primitives[0].indices->buffer_view->buffer->data;
+    void* indices = data->meshes[i].primitives->indices->buffer_view->buffer->data;
+    indices = (char*)indices + byteOffset;
+    count = data->meshes[i].primitives[0].indices->count;
+
+    printf("Indices\n");
+    for(int t = 0; t < count; t++){
+      //printf("%hu ", ((unsigned short*)((char*)data->buffers[0].data + byteOffset))[t]);
+      printf("%hu ", ((unsigned short*)indices)[t]);
+    }
+    printf("\n");
+    //indices = indices + byteOffset;
+    printf("byteOffset%i\n", byteOffset);
+    printf("count %i\n", count);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,  count * sizeof(unsigned short), indices, GL_STATIC_DRAW);
+    meshes->indicesLen = count;
+
+    // Unbind buffers
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+  }
+
+  *meshesLen = data->meshes_count;
+
+  cgltf_free(data);
+  return 0;
 }
 
 void loadModelObj(Model* model){
@@ -580,7 +707,8 @@ int main(){
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
 
-  Model model = {.meshPath = "src/models/lantern.obj"};
+  //Model model = {.meshPath = "src/models/lantern.obj"};
+  Model model = {.meshPath = "src/models/cube.obj"};
   loadModelObj(&model);
 
   // Creating a texture with stb image
@@ -633,42 +761,17 @@ int main(){
   float cameraRotationSpeed = 100;
   camera->pos.x = 0;
   camera->pos.y = 0;
-  camera->pos.z = 30;
+  camera->pos.z = 0;
 
   Spacemouse* spacemouse = initSpacemouse();
   Gamepad* gamepad = initGamepad();
 
-  /*
-  // TODO move this elsewhere
-  cgltf_options options = {0};
-  cgltf_data* data = NULL;
-  // cgltf_result result = cgltf_parse_file(&options, "scenes/bistro_int.gltf",
-  // &data);
-  cgltf_result result = cgltf_parse_file(&options, "src/models/test.gltf", &data);
-  typedef struct{
-    unsigned int vbo;
-    unsigned int vao;
-    unsigned int ebo;
-    unsigned int texture;
-  }Mesh;
-  if(result == cgltf_result_success){
-    printf("Success\n");
-    // create meshes
-    Mesh* meshes = malloc(sizeof(Mesh) * data->meshes_count);
+  Model* meshes;
+  unsigned int meshesLen;
 
-    for(int i = 0; i < data->meshes_count; i++){
-      // go through every mesh and set data
-      // get buffer view from accessors
-      // for each mesh go into each accessor and get the data.
-      // meshes.primitives[0].attributes will give the position and normal
-      for(int j = 0; j < data->meshes[i].primitives_count; j++){
-        printf("%s: %s\n", data->meshes[i].primitives->attributes->name, data->meshes[i].primitives->attributes->name);
-      }
-    }
 
-    cgltf_free(data);
-  }
-  */
+  loadGltf(&meshes, &meshesLen);
+
   while(!glfwWindowShouldClose(window)){
     // calculate delta time
     float currentFrame = glfwGetTime();
@@ -689,7 +792,7 @@ int main(){
 
     glUniformMatrix4fv(viewMatLoc, 1, GL_FALSE, (float*)viewMat);
 
-    float rot[4];
+    float rot[4] = {0.0, 0.0, 0.0};
     float trans[] = {0.0, 0.0, -10.0};
     float axis[3] = {0, 0, 0};
     float scale[3] = {1.0, 1.0, 1.0};
@@ -707,13 +810,29 @@ int main(){
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // bind texture
-    glBindTexture(GL_TEXTURE_2D, model.texture);
+    //glBindTexture(GL_TEXTURE_2D, model.texture);
     // render container
+    /*
     glUseProgram(shaderProgram);
     glBindVertexArray(model.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+   glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
+    */
     // Wireframe mode
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+   
+    //glDrawElements(GL_TRIANGLES, model.indicesLen, GL_UNSIGNED_INT, 0);
+
+    for(int i = 0; i < meshesLen; i++){
+      glUseProgram(shaderProgram);
+      glBindVertexArray(meshes[i].VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+      // TODO test replacing ebo with indices offset into ebo?
+      glDrawElements(GL_TRIANGLES, meshes[i].indicesLen, GL_UNSIGNED_SHORT, 0);
+      //glPointSize(10);
+      //glDrawElements(GL_POINTS, meshes[i].indicesLen, GL_UNSIGNED_SHORT, 0);
+//      printf("indices Len%i\n", meshes[i].indicesLen);
+      glBindVertexArray(0);
+    }
+    printf("%i\n", meshesLen);
     // draw buffer swap
     glfwSwapBuffers(window);
     glfwPollEvents();

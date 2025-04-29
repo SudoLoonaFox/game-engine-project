@@ -32,6 +32,7 @@ void main(){
 
   //FragColor = vec4(texture(texture1, texCoord).xyz * diff, 1.0);
   FragColor = vec4(texture(texture1, texCoord).xyz * max(diff, ambientStrength), 1.0);
+  //FragColor = vec4(1, 0, 1, 1);
   //FragColor = vec4(FragColor.xyz + max(texture(texture1, texCoord).xyz, texture(texture1, texCoord).xyz*ambient.xyz), 1.0f);
 
 	//FragColor = normalize(vec4(1.0f, 0.5f, 0.2f, 1.0f));
