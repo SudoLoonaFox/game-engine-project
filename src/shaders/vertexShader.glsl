@@ -20,7 +20,6 @@ void main(){
   model = scale * model;
   model = model.xyz + 2.0*cross(cross(model.xyz, rotation.xyz) + rotation.w*model.xyz, rotation.xyz);
   model = translation + model;
-  // rotate by quaternion
 	gl_Position = projection * view * vec4(model, 1);
 	outputColor = aColor;
   fragPos = model.xyz;

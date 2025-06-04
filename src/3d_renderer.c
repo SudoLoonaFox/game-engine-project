@@ -76,9 +76,9 @@ typedef struct{
   unsigned int indicesLen;
   unsigned int indicesOffset;
   unsigned int texture;
-  Positon pos;
-  Quaternion rot;
-  float scale;
+  float trans[3];
+  float rot[4];
+  float scale[3];
   float modelMat[16];
 }Model;
 
@@ -365,10 +365,15 @@ void dataToBuffers(Vertex* vertices, unsigned int verticesLen, unsigned int* ind
 int loadGltf(Model** meshesPtr, unsigned int* meshesLen){
   // TODO move this elsewhere
   //const char path[] = "src/models/Fox/glTF/Fox.gltf";
-  //const char path[] = "src/models/test.gltf";
-  const char path[] = "src/models/cube.glb";
+  //const char path[] = "src/models/multiple-objects.gltf";
+  //const char path[] = "src/models/two-triangles.gltf";
+  //const char path[] = "src/models/cube.glb";
   //const char path[] = "src/models/monkey.glb";
+  //const char path[] = "src/models/Camera.glb";
+  const char path[] = "src/models/LampPost.glb";
+  //const char path[] = "src/models/image-on-plane.gltf";
   //const char path[] = "src/scenes/bistro_int.gltf";
+  //const char path[] = "src/models/three-objects.gltf";
   #define MAX_BUFFERS 10
   cgltf_options options = {0};
   cgltf_data* data = NULL;
@@ -451,7 +456,8 @@ int loadGltf(Model** meshesPtr, unsigned int* meshesLen){
     }
 
     // TODO make work for meshes without indices
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshes->EBO);
+    glGenBuffers(1, &meshes[i].EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshes[i].EBO);
     byteOffset = data->meshes[i].primitives[0].indices->offset;
     byteOffset += data->meshes[i].primitives[0].indices->buffer_view->offset;
     //printf("%p\n", data->buffers[i].data);
@@ -470,14 +476,31 @@ int loadGltf(Model** meshesPtr, unsigned int* meshesLen){
     printf("byteOffset%i\n", byteOffset);
     printf("count %i\n", count);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,  count * sizeof(unsigned short), indices, GL_STATIC_DRAW);
-    meshes->indicesLen = count;
+    meshes[i].indicesLen = count;
 
     // Unbind buffers
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    meshes[i].rot[0] = data->nodes[i].rotation[0];
+    meshes[i].rot[1] = data->nodes[i].rotation[1];
+    meshes[i].rot[2] = data->nodes[i].rotation[2];
+    meshes[i].rot[3] = data->nodes[i].rotation[3];
+
+    meshes[i].trans[0] = data->nodes[i].translation[0];
+    meshes[i].trans[1] = data->nodes[i].translation[1];
+    meshes[i].trans[2] = data->nodes[i].translation[2];
+
+    
+    meshes[i].scale[0] = data->nodes[i].scale[0];
+    meshes[i].scale[1] = data->nodes[i].scale[1];
+    meshes[i].scale[2] = data->nodes[i].scale[2];
   }
 
   *meshesLen = data->meshes_count;
+
+  // go through each node and apply the transformations
+  // because the data structure of cgltf is stupid using indices for nodes is more complex
 
   cgltf_free(data);
   return 0;
@@ -745,7 +768,7 @@ int main(){
     0, 0, 0, 1
   };
 
-  glm_perspective(0.780f, (float)(880.0 / 600.0), 0.1f, 100.0f, (float (*)[4])projectionMat);
+  glm_perspective(0.780f, (float)(880.0 / 600.0), 0.1f, 500.0f, (float (*)[4])projectionMat);
 
   unsigned int projMatLoc = glGetUniformLocation(shaderProgram, "projection");
   unsigned int viewMatLoc = glGetUniformLocation(shaderProgram, "view");
@@ -765,6 +788,23 @@ int main(){
 
   Spacemouse* spacemouse = initSpacemouse();
   Gamepad* gamepad = initGamepad();
+
+  // Create tree data structure for nodes
+  
+  // scene node needs pos rot scale mesh/camera and children representation
+  // children set using linked list?
+  // malloc or use array?
+  // b+ tree?
+  //
+  /*
+  typedef struct{
+    float matrix[16];
+    bool camera;
+    int index;
+    int children;
+    int next;
+  }SceneNode;
+  */
 
   Model* meshes;
   unsigned int meshesLen;
@@ -796,6 +836,7 @@ int main(){
     float trans[] = {0.0, 0.0, -10.0};
     float axis[3] = {0, 0, 0};
     float scale[3] = {1.0, 1.0, 1.0};
+    //float scale[3] = {0.5, 0.5, 0.5};
     glm_normalize(axis);
     // convert rotation to quaternion
     axisAngleToQuat(axis, currentFrame * 5, rot);
@@ -826,6 +867,9 @@ int main(){
       glUseProgram(shaderProgram);
       glBindVertexArray(meshes[i].VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
       // TODO test replacing ebo with indices offset into ebo?
+      glUniform3fv(translationLoc, 1, meshes[i].trans);
+      glUniform4fv(rotationLoc, 1, meshes[i].rot);
+      glUniform3fv(scaleLoc, 1, scale);
       glDrawElements(GL_TRIANGLES, meshes[i].indicesLen, GL_UNSIGNED_SHORT, 0);
       //glPointSize(10);
       //glDrawElements(GL_POINTS, meshes[i].indicesLen, GL_UNSIGNED_SHORT, 0);
